@@ -4,8 +4,8 @@
  * import mock data directly. To connect a real backend, replace the bodies
  * here with fetch() calls; signatures and return types stay the same.
  */
-import { mockActivity, mockCards, mockCustomers, mockMetrics, mockPreviewSamples, mockRestaurants } from "@/data/mock";
-import type { Activity, Customer, DashboardMetric, LoyaltyCardPreviewData, LoyaltyProgram, Restaurant, RestaurantSummary } from "@/types";
+import { mockActivity, mockCards, mockCustomers, mockMetrics, mockPreviewSamples, mockRedemptions, mockRestaurants } from "@/data/mock";
+import type { Activity, Customer, DashboardMetric, LoyaltyCardPreviewData, LoyaltyProgram, Redemption, Restaurant, RestaurantSummary } from "@/types";
 
 export async function listRestaurants(): Promise<Restaurant[]> {
   return mockRestaurants;
@@ -68,11 +68,43 @@ export async function awardStamp(restaurantId: string, customerId: string): Prom
 }
 
 export async function redeemReward(restaurantId: string, customerId: string): Promise<Customer | null> {
-  return updateCustomer(restaurantId, customerId, (customer, program) =>
+  const program = await getLoyaltyProgram(restaurantId);
+  if (!program) return null;
+  const updated = await updateCustomer(restaurantId, customerId, (customer) =>
     customer.stamps < program.stampsRequired
       ? null
       : { ...customer, stamps: 0, lastVisit: "Just now" },
   );
+  if (!updated) return null;
+
+  const history = mockRedemptions[restaurantId] ?? [];
+  mockRedemptions[restaurantId] = [
+    {
+      id: `${restaurantId}-rd-${history.length + 1}`,
+      restaurantId,
+      customerId,
+      customerName: updated.name,
+      rewardTitle: program.rewardTitle,
+      redeemedAt: "Just now",
+    },
+    ...history,
+  ];
+  return updated;
+}
+
+/** Customers whose card is full and who can claim the reward now. */
+export async function getRewardReadyCustomers(restaurantId: string): Promise<Customer[]> {
+  const [customers, program] = await Promise.all([
+    getRestaurantCustomers(restaurantId),
+    getLoyaltyProgram(restaurantId),
+  ]);
+  if (!program) return [];
+  return customers.filter((c) => c.stamps >= program.stampsRequired);
+}
+
+/** Reward redemptions for one restaurant, newest first. */
+export async function getRedemptions(restaurantId: string): Promise<Redemption[]> {
+  return mockRedemptions[restaurantId] ?? [];
 }
 
 /**

@@ -3,7 +3,7 @@
  * demonstrate the multi-restaurant structure. Nothing in the app may
  * depend on a specific one of them.
  */
-import type { Activity, Customer, DashboardMetric, LoyaltyCard, LoyaltyCardPreviewData, Restaurant } from "@/types";
+import type { Activity, Customer, DashboardMetric, LoyaltyCard, LoyaltyCardPreviewData, Redemption, Restaurant } from "@/types";
 
 export const mockRestaurants: Restaurant[] = [
   { id: "chez-marcel", name: "Chez Marcel", category: "Bistro & Café", city: "Ottawa", status: "active" },
@@ -97,4 +97,17 @@ export const mockPreviewSamples: Record<string, LoyaltyCardPreviewData["sample"]
   "chez-marcel": { customerName: "Sofia Martin", stamps: 6, memberId: "FW-0042-8817" },
   "cafe-roma": { customerName: "Giulia Pellegrini", stamps: 5, memberId: "FW-0107-2401" },
   "burger-house": { customerName: "Sample Customer", stamps: 4, memberId: "FW-0213-0001" },
+};
+
+/** In-memory store, newest first: redeeming a reward adds to it until the server restarts. */
+export const mockRedemptions: Record<string, Redemption[]> = {
+  "chez-marcel": [
+    { id: "chez-marcel-rd-3", restaurantId: "chez-marcel", customerId: "cm-5", customerName: "Chloe Dubois", rewardTitle: "Free dessert", redeemedAt: "Last week" },
+    { id: "chez-marcel-rd-2", restaurantId: "chez-marcel", customerId: "cm-1", customerName: "Sofia Martin", rewardTitle: "Free dessert", redeemedAt: "2 weeks ago" },
+    { id: "chez-marcel-rd-1", restaurantId: "chez-marcel", customerId: "cm-3", customerName: "Amina Khan", rewardTitle: "Free dessert", redeemedAt: "Last month" },
+  ],
+  "cafe-roma": [
+    { id: "cafe-roma-rd-1", restaurantId: "cafe-roma", customerId: "cr-1", customerName: "Giulia Pellegrini", rewardTitle: "Free espresso", redeemedAt: "Last week" },
+  ],
+  "burger-house": [],
 };

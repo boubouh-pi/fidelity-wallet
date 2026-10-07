@@ -74,3 +74,14 @@ export interface RestaurantSummary {
   program: LoyaltyProgram | null;
   customerCount: number;
 }
+
+/** A reward claimed by one of a restaurant's customers. */
+export interface Redemption {
+  id: string;
+  restaurantId: string;
+  customerId: string;
+  customerName: string;
+  /** Reward title at the time of redemption. */
+  rewardTitle: string;
+  redeemedAt: string;
+}
