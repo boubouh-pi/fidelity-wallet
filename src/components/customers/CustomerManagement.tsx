@@ -2,15 +2,18 @@
 
 import { useState } from "react";
 import { Gift, Plus, Search } from "lucide-react";
+import { awardStamp, redeemReward } from "@/app/r/[restaurantId]/customers/actions";
 import type { Customer } from "@/types";
 
 type CustomerFilter = "all" | "ready" | "in-progress";
 
 export function CustomerManagement({
+  restaurantId,
   initialCustomers,
   stampsRequired,
   rewardTitle,
 }: {
+  restaurantId: string;
   initialCustomers: Customer[];
   stampsRequired: number;
   rewardTitle: string;
@@ -31,28 +34,21 @@ export function CustomerManagement({
     return matchesSearch && matchesFilter;
   });
 
-  function awardStamp(customerId: string) {
-    const target = customers.find((customer) => customer.id === customerId);
-    if (!target || target.stamps >= stampsRequired) return;
-
-    setCustomers((current) => current.map((customer) =>
-      customer.id === customerId
-        ? { ...customer, stamps: customer.stamps + 1, lastVisit: "Just now" }
-        : customer,
-    ));
-    setStatusMessage(`Stamp awarded to ${target.name}.`);
+  function applyUpdate(updated: Customer | null, successMessage: (customer: Customer) => string) {
+    if (!updated) {
+      setStatusMessage("This action could not be completed.");
+      return;
+    }
+    setCustomers((current) => current.map((customer) => (customer.id === updated.id ? updated : customer)));
+    setStatusMessage(successMessage(updated));
   }
 
-  function redeemReward(customerId: string) {
-    const target = customers.find((customer) => customer.id === customerId);
-    if (!target || target.stamps < stampsRequired) return;
+  async function handleAwardStamp(customerId: string) {
+    applyUpdate(await awardStamp(restaurantId, customerId), (c) => `Stamp awarded to ${c.name}.`);
+  }
 
-    setCustomers((current) => current.map((customer) =>
-      customer.id === customerId
-        ? { ...customer, stamps: 0, lastVisit: "Just now" }
-        : customer,
-    ));
-    setStatusMessage(`${rewardTitle} redeemed for ${target.name}.`);
+  async function handleRedeemReward(customerId: string) {
+    applyUpdate(await redeemReward(restaurantId, customerId), (c) => `${rewardTitle} redeemed for ${c.name}.`);
   }
 
   const filters: { id: CustomerFilter; label: string; count: number }[] = [
@@ -153,7 +149,7 @@ export function CustomerManagement({
                         <button
                           type="button"
                           disabled={rewardReady}
-                          onClick={() => awardStamp(customer.id)}
+                          onClick={() => handleAwardStamp(customer.id)}
                           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           <Plus size={14} />
@@ -162,7 +158,7 @@ export function CustomerManagement({
                         <button
                           type="button"
                           disabled={!rewardReady}
-                          onClick={() => redeemReward(customer.id)}
+                          onClick={() => handleRedeemReward(customer.id)}
                           className="inline-flex h-8 items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-35"
                         >
                           <Gift size={14} />

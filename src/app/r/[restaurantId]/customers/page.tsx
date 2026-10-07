@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { CustomerManagement } from "@/components/customers/CustomerManagement";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { getLoyaltyCardPreview, getRestaurant, getRestaurantCustomers } from "@/services";
+import { getLoyaltyProgram, getRestaurant, getRestaurantCustomers } from "@/services";
 
 export default function CustomersPage(props: PageProps<"/r/[restaurantId]/customers">) {
   return (
@@ -14,13 +14,13 @@ export default function CustomersPage(props: PageProps<"/r/[restaurantId]/custom
 
 async function CustomersContent({ params }: PageProps<"/r/[restaurantId]/customers">) {
   const { restaurantId } = await params;
-  const [restaurant, customers, cardPreview] = await Promise.all([
+  const [restaurant, customers, program] = await Promise.all([
     getRestaurant(restaurantId),
     getRestaurantCustomers(restaurantId),
-    getLoyaltyCardPreview(restaurantId),
+    getLoyaltyProgram(restaurantId),
   ]);
 
-  if (!restaurant || !cardPreview) notFound();
+  if (!restaurant || !program) notFound();
 
   return (
     <>
@@ -29,9 +29,10 @@ async function CustomersContent({ params }: PageProps<"/r/[restaurantId]/custome
         description={`Sample loyalty members for ${restaurant.name}.`}
       />
       <CustomerManagement
+        restaurantId={restaurant.id}
         initialCustomers={customers}
-        stampsRequired={cardPreview.card.program.stampsRequired}
-        rewardTitle={cardPreview.card.program.rewardTitle}
+        stampsRequired={program.stampsRequired}
+        rewardTitle={program.rewardTitle}
       />
     </>
   );

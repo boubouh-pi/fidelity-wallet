@@ -3,7 +3,7 @@
  * demonstrate the multi-restaurant structure. Nothing in the app may
  * depend on a specific one of them.
  */
-import type { Activity, Customer, DashboardMetric, LoyaltyCard, Restaurant } from "@/types";
+import type { Activity, Customer, DashboardMetric, LoyaltyCard, LoyaltyCardPreviewData, Restaurant } from "@/types";
 
 export const mockRestaurants: Restaurant[] = [
   { id: "chez-marcel", name: "Chez Marcel", category: "Bistro & Café", city: "Ottawa", status: "active" },
@@ -46,6 +46,7 @@ const customer = (
   lastVisit: string,
 ): Customer => ({ id, restaurantId, name, memberId, stamps, lastVisit });
 
+/** In-memory store: customer actions update it until the server restarts. */
 export const mockCustomers: Record<string, Customer[]> = {
   "chez-marcel": [
     customer("cm-1", "chez-marcel", "Sofia Martin", "FW-0042-8817", 6, "2 min ago"),
@@ -89,4 +90,11 @@ export const mockCards: Record<string, LoyaltyCard> = {
     { displayName: "Burger House", tagline: "Burgers", brandColor: "#222222", accentColor: "#ff6b35", logoUrl: null },
     { stampsRequired: 6, rewardTitle: "Free fries", rewardDescription: "A side of fries after 6 visits.", expiresInDays: 365 },
   ),
+};
+
+/** Sample customer shown on each restaurant's loyalty card preview. */
+export const mockPreviewSamples: Record<string, LoyaltyCardPreviewData["sample"]> = {
+  "chez-marcel": { customerName: "Sofia Martin", stamps: 6, memberId: "FW-0042-8817" },
+  "cafe-roma": { customerName: "Giulia Pellegrini", stamps: 5, memberId: "FW-0107-2401" },
+  "burger-house": { customerName: "Sample Customer", stamps: 4, memberId: "FW-0213-0001" },
 };
