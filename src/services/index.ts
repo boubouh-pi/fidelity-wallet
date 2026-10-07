@@ -1,10 +1,11 @@
 /**
- * Data access layer. Every call is scoped to a restaurant. Components never
+ * Data access layer. Restaurant data is always read through a restaurantId;
+ * provider-wide reads are grouped at the end. Components never
  * import mock data directly. To connect a real backend, replace the bodies
  * here with fetch() calls; signatures and return types stay the same.
  */
 import { mockActivity, mockCards, mockCustomers, mockMetrics, mockPreviewSamples, mockRestaurants } from "@/data/mock";
-import type { Activity, Customer, DashboardMetric, LoyaltyCardPreviewData, LoyaltyProgram, Restaurant } from "@/types";
+import type { Activity, Customer, DashboardMetric, LoyaltyCardPreviewData, LoyaltyProgram, Restaurant, RestaurantSummary } from "@/types";
 
 export async function listRestaurants(): Promise<Restaurant[]> {
   return mockRestaurants;
@@ -71,5 +72,20 @@ export async function redeemReward(restaurantId: string, customerId: string): Pr
     customer.stamps < program.stampsRequired
       ? null
       : { ...customer, stamps: 0, lastVisit: "Just now" },
+  );
+}
+
+/**
+ * Provider-side (Fidelity Wallet admin) reads across all restaurants.
+ * Never call these from the restaurant dashboard.
+ */
+export async function listRestaurantSummaries(): Promise<RestaurantSummary[]> {
+  const restaurants = await listRestaurants();
+  return Promise.all(
+    restaurants.map(async (restaurant) => ({
+      restaurant,
+      program: await getLoyaltyProgram(restaurant.id),
+      customerCount: (await getRestaurantCustomers(restaurant.id)).length,
+    })),
   );
 }

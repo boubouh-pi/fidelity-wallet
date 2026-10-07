@@ -72,7 +72,7 @@ The active restaurant/business should be identifiable throughout the dashboard. 
 
 A separate internal/provider platform may eventually support restaurant creation and onboarding, account management, initial card and program configuration, wallet integrations, platform monitoring, support, and global settings.
 
-At minimum, the provider experience needs a portfolio view listing all restaurant/business clients that have Fidelity Wallet cards, with their account status and card/program association. This view is distinct from the restaurant dashboard and is not part of the current MVP. Do not add provider-only navigation or capabilities to the restaurant interface as a shortcut.
+At minimum, the provider experience needs a portfolio view listing all restaurant/business clients that have Fidelity Wallet cards, with their account status and card/program association. This view is distinct from the restaurant dashboard. A minimal, read-only version exists in the prototype at `/admin/restaurants`, with its own layout; the rest of the admin platform is not part of the current MVP. Do not add provider-only navigation or capabilities to the restaurant interface as a shortcut.
 
 ## Multi-Restaurant Architecture
 
@@ -82,7 +82,7 @@ The current prototype uses restaurant-scoped routes such as `/r/[restaurantId]` 
 
 Use generic domain concepts such as Restaurant, Business, LoyaltyProgram, LoyaltyCard, Customer, Reward, and Promotion. Restaurant is the current MVP client type; keep the model open to other business clients without building a generalized multi-industry system prematurely.
 
-"Chez Marcel" is fictional demonstration data only. It is not Fidelity Wallet, the platform owner, or a hard-coded business assumption. Other mock businesses demonstrate that the product is multi-restaurant. The current root redirect to a demo restaurant is only a prototype convenience, not a production tenant-selection or access-control model.
+"Chez Marcel" is fictional demonstration data only. It is not Fidelity Wallet, the platform owner, or a hard-coded business assumption. Other mock businesses demonstrate that the product is multi-restaurant. The current root redirect to the admin restaurant list is only a prototype convenience, not a production tenant-selection or access-control model.
 
 ## Loyalty Card
 
@@ -97,6 +97,7 @@ For the current prototype, use mock data and show a representative preview. Do n
 - Dashboard overview and navigation for card, customers, rewards, promotions, analytics, and settings.
 - A loyalty card preview that communicates the restaurant's program and provider-managed initial design.
 - Clear indication of which restaurant account is being managed.
+- A minimal, read-only provider view listing all restaurant clients (`/admin/restaurants`). It has no access control until authentication exists.
 
 Some dashboard sections may remain placeholders while the product foundation is established.
 

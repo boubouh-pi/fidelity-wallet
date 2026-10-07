@@ -67,3 +67,10 @@ export interface Customer {
   stamps: number;
   lastVisit: string;
 }
+
+/** Provider-side overview of one restaurant client, for the Fidelity Wallet admin. */
+export interface RestaurantSummary {
+  restaurant: Restaurant;
+  program: LoyaltyProgram | null;
+  customerCount: number;
+}
