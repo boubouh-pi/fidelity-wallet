@@ -118,3 +118,22 @@ export interface RestaurantAnalytics {
   /** Share of visits per weekday, Monday first (sums to 1). */
   weekdayShare: number[];
 }
+
+/** Contact details a restaurant manages itself. Empty string = not provided. */
+export interface RestaurantProfile {
+  restaurantId: string;
+  contactEmail: string;
+  phone: string;
+  address: string;
+  website: string;
+}
+
+/** Loyalty program fields Fidelity Wallet may allow a restaurant to edit. */
+export type EditableProgramField = "rewardDescription" | "expiresInDays";
+
+export interface RestaurantSettings {
+  profile: RestaurantProfile;
+  program: LoyaltyProgram;
+  /** Fields this restaurant may change; everything else is managed by Fidelity Wallet. */
+  editableProgramFields: EditableProgramField[];
+}

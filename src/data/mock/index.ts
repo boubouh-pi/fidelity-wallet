@@ -4,7 +4,8 @@
  * depend on a specific one of them.
  */
 import type {
-  Activity, AnalyticsWeek, Customer, DashboardMetric, LoyaltyCard, LoyaltyCardPreviewData, Promotion, Redemption, Restaurant,
+  Activity, AnalyticsWeek, Customer, DashboardMetric, EditableProgramField, LoyaltyCard, LoyaltyCardPreviewData, Promotion,
+  Redemption, Restaurant, RestaurantProfile,
 } from "@/types";
 import { addDays } from "@/lib/utils";
 
@@ -197,3 +198,25 @@ export function mockAnalyticsWeeks(restaurantId: string, currentMonday: string, 
 export function mockWeekdayShare(restaurantId: string): number[] {
   return analyticsProfiles[restaurantId]?.weekdayShare ?? [0, 0, 0, 0, 0, 0, 0];
 }
+
+/** In-memory store: profile edits update it until the server restarts. */
+export const mockProfiles: Record<string, RestaurantProfile> = {
+  "chez-marcel": {
+    restaurantId: "chez-marcel", contactEmail: "contact@chezmarcel.example", phone: "(613) 555-0142",
+    address: "12 Murray Street, Ottawa, ON", website: "https://chezmarcel.example",
+  },
+  "cafe-roma": {
+    restaurantId: "cafe-roma", contactEmail: "ciao@caferoma.example", phone: "(819) 555-0178",
+    address: "85 Rue Principale, Gatineau, QC", website: "",
+  },
+  "burger-house": {
+    restaurantId: "burger-house", contactEmail: "hello@burgerhouse.example", phone: "", address: "", website: "",
+  },
+};
+
+/** Program fields each restaurant may edit, as decided by Fidelity Wallet. */
+export const mockProgramPermissions: Record<string, EditableProgramField[]> = {
+  "chez-marcel": ["rewardDescription", "expiresInDays"],
+  "cafe-roma": ["rewardDescription"],
+  "burger-house": [],
+};

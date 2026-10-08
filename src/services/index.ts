@@ -7,12 +7,13 @@
 import { connection } from "next/server";
 import {
   mockActivity, mockCards, mockCustomers, mockMetrics, mockPreviewSamples, mockPromotions, mockRedemptions, mockRestaurants,
-  mockAnalyticsWeeks, mockWeekdayShare, seedMockPromotions,
+  mockAnalyticsWeeks, mockProfiles, mockProgramPermissions, mockWeekdayShare, seedMockPromotions,
 } from "@/data/mock";
 import { addDays } from "@/lib/utils";
 import type {
-  Activity, Customer, DashboardMetric, LoyaltyCardPreviewData, LoyaltyProgram, Promotion, PromotionStatus,
-  PromotionWithStatus, Redemption, Restaurant, RestaurantAnalytics, RestaurantSummary,
+  Activity, Customer, DashboardMetric, EditableProgramField, LoyaltyCardPreviewData, LoyaltyProgram, Promotion,
+  PromotionStatus, PromotionWithStatus, Redemption, Restaurant, RestaurantAnalytics, RestaurantProfile,
+  RestaurantSettings, RestaurantSummary,
 } from "@/types";
 
 export async function listRestaurants(): Promise<Restaurant[]> {
@@ -208,6 +209,80 @@ export async function getAnalytics(restaurantId: string): Promise<RestaurantAnal
     weeks: mockAnalyticsWeeks(restaurantId, currentMonday, ANALYTICS_WEEKS),
     weekdayShare: mockWeekdayShare(restaurantId),
   };
+}
+
+export async function getRestaurantSettings(restaurantId: string): Promise<RestaurantSettings | null> {
+  const profile = mockProfiles[restaurantId];
+  const program = await getLoyaltyProgram(restaurantId);
+  if (!profile || !program) return null;
+  return { profile, program, editableProgramFields: mockProgramPermissions[restaurantId] ?? [] };
+}
+
+export type SettingsResult<T> = { ok: true; value: T } | { ok: false; error: string };
+
+export async function updateRestaurantProfile(
+  restaurantId: string,
+  input: Omit<RestaurantProfile, "restaurantId">,
+): Promise<SettingsResult<RestaurantProfile>> {
+  if (!mockProfiles[restaurantId]) return { ok: false, error: "Restaurant not found." };
+
+  const profile = {
+    restaurantId,
+    contactEmail: input.contactEmail.trim(),
+    phone: input.phone.trim(),
+    address: input.address.trim(),
+    website: input.website.trim(),
+  };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profile.contactEmail) || profile.contactEmail.length > 100) {
+    return { ok: false, error: "Enter a valid contact email." };
+  }
+  if (profile.phone && !/^[0-9+()\-. ]{7,25}$/.test(profile.phone)) {
+    return { ok: false, error: "Enter a valid phone number." };
+  }
+  if (profile.address.length > 120) return { ok: false, error: "The address must be 120 characters or fewer." };
+  if (profile.website && (!/^https?:\/\/\S+\.\S+$/.test(profile.website) || profile.website.length > 100)) {
+    return { ok: false, error: "The website must start with http:// or https://." };
+  }
+
+  mockProfiles[restaurantId] = profile;
+  return { ok: true, value: profile };
+}
+
+/**
+ * Updates the loyalty program fields this restaurant is allowed to edit.
+ * Any other field is refused: permissions are enforced here, not only in the UI.
+ */
+export async function updateLoyaltySettings(
+  restaurantId: string,
+  changes: Partial<Pick<LoyaltyProgram, EditableProgramField>>,
+): Promise<SettingsResult<LoyaltyProgram>> {
+  const card = mockCards[restaurantId];
+  if (!card) return { ok: false, error: "Restaurant not found." };
+
+  const allowed = mockProgramPermissions[restaurantId] ?? [];
+  const fields = Object.keys(changes) as EditableProgramField[];
+  if (fields.some((field) => !allowed.includes(field))) {
+    return { ok: false, error: "This setting is managed by Fidelity Wallet. Contact us to change it." };
+  }
+
+  const next = { ...card.program };
+  if (changes.rewardDescription !== undefined) {
+    const description = changes.rewardDescription.trim();
+    if (!description || description.length > 120) {
+      return { ok: false, error: "The reward description must be between 1 and 120 characters." };
+    }
+    next.rewardDescription = description;
+  }
+  if (changes.expiresInDays !== undefined) {
+    const days = changes.expiresInDays;
+    if (!Number.isInteger(days) || days < 30 || days > 730) {
+      return { ok: false, error: "Reward validity must be between 30 and 730 days." };
+    }
+    next.expiresInDays = days;
+  }
+
+  mockCards[restaurantId] = { ...card, program: next };
+  return { ok: true, value: next };
 }
 
 /**
