@@ -101,3 +101,20 @@ export interface Promotion {
 }
 
 export type PromotionWithStatus = Promotion & { status: PromotionStatus };
+
+/** One completed week (Monday to Sunday) of program activity. */
+export interface AnalyticsWeek {
+  /** Monday of the week, YYYY-MM-DD. */
+  weekStart: string;
+  /** Stamps awarded, i.e. visits by loyalty members. */
+  visits: number;
+  redemptions: number;
+  newMembers: number;
+}
+
+export interface RestaurantAnalytics {
+  /** Completed weeks, oldest first. Empty while the program has no activity. */
+  weeks: AnalyticsWeek[];
+  /** Share of visits per weekday, Monday first (sums to 1). */
+  weekdayShare: number[];
+}

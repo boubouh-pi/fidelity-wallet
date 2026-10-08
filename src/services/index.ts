@@ -7,11 +7,12 @@
 import { connection } from "next/server";
 import {
   mockActivity, mockCards, mockCustomers, mockMetrics, mockPreviewSamples, mockPromotions, mockRedemptions, mockRestaurants,
-  seedMockPromotions,
+  mockAnalyticsWeeks, mockWeekdayShare, seedMockPromotions,
 } from "@/data/mock";
+import { addDays } from "@/lib/utils";
 import type {
   Activity, Customer, DashboardMetric, LoyaltyCardPreviewData, LoyaltyProgram, Promotion, PromotionStatus,
-  PromotionWithStatus, Redemption, Restaurant, RestaurantSummary,
+  PromotionWithStatus, Redemption, Restaurant, RestaurantAnalytics, RestaurantSummary,
 } from "@/types";
 
 export async function listRestaurants(): Promise<Restaurant[]> {
@@ -193,6 +194,20 @@ export async function endPromotion(restaurantId: string, promotionId: string): P
     p.id === promotionId ? { ...p, endedEarly: true } : p,
   );
   return { ok: true, promotions: await getPromotions(restaurantId) };
+}
+
+/** Weeks of history kept for analytics: enough to compare a 12-week period with the one before it. */
+const ANALYTICS_WEEKS = 24;
+
+/** Weekly program activity for one restaurant, over the last completed weeks. */
+export async function getAnalytics(restaurantId: string): Promise<RestaurantAnalytics> {
+  const date = await getToday();
+  const daysSinceMonday = (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
+  const currentMonday = addDays(date, -daysSinceMonday);
+  return {
+    weeks: mockAnalyticsWeeks(restaurantId, currentMonday, ANALYTICS_WEEKS),
+    weekdayShare: mockWeekdayShare(restaurantId),
+  };
 }
 
 /**

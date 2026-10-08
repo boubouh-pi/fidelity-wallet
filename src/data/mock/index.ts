@@ -3,7 +3,9 @@
  * demonstrate the multi-restaurant structure. Nothing in the app may
  * depend on a specific one of them.
  */
-import type { Activity, Customer, DashboardMetric, LoyaltyCard, LoyaltyCardPreviewData, Promotion, Redemption, Restaurant } from "@/types";
+import type {
+  Activity, AnalyticsWeek, Customer, DashboardMetric, LoyaltyCard, LoyaltyCardPreviewData, Promotion, Redemption, Restaurant,
+} from "@/types";
 import { addDays } from "@/lib/utils";
 
 export const mockRestaurants: Restaurant[] = [
@@ -145,4 +147,53 @@ export function seedMockPromotions(today: string) {
       endedEarly: false,
     }));
   }
+}
+
+interface AnalyticsProfile {
+  /** Visits in the oldest week, and weekly growth rate. */
+  baseVisits: number;
+  growth: number;
+  /** Share of visits that end with a reward being redeemed. */
+  redemptionRate: number;
+  baseNewMembers: number;
+  weekdayShare: number[];
+}
+
+/** Restaurants without a profile (still onboarding) have no analytics yet. */
+const analyticsProfiles: Record<string, AnalyticsProfile> = {
+  "chez-marcel": {
+    baseVisits: 610, growth: 0.012, redemptionRate: 0.075, baseNewMembers: 38,
+    weekdayShare: [0.1, 0.12, 0.13, 0.14, 0.19, 0.2, 0.12],
+  },
+  "cafe-roma": {
+    baseVisits: 300, growth: 0.018, redemptionRate: 0.08, baseNewMembers: 21,
+    weekdayShare: [0.16, 0.15, 0.15, 0.15, 0.15, 0.13, 0.11],
+  },
+};
+
+/** Deterministic pseudo-random value in [-1, 1], so the demo charts never change between renders. */
+const noise = (seed: number) => {
+  const x = Math.sin(seed * 12.9898) * 43758.5453;
+  return (x - Math.floor(x)) * 2 - 1;
+};
+
+/** Demo weekly activity for the `count` completed weeks before `currentMonday`, oldest first. */
+export function mockAnalyticsWeeks(restaurantId: string, currentMonday: string, count: number): AnalyticsWeek[] {
+  const profile = analyticsProfiles[restaurantId];
+  if (!profile) return [];
+  const seedBase = [...restaurantId].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+  return Array.from({ length: count }, (_, i) => {
+    const trend = profile.baseVisits * (1 + profile.growth) ** i;
+    const visits = Math.round(trend * (1 + 0.08 * noise(seedBase + i)));
+    return {
+      weekStart: addDays(currentMonday, -7 * (count - i)),
+      visits,
+      redemptions: Math.round(visits * profile.redemptionRate * (1 + 0.15 * noise(seedBase + i + 100))),
+      newMembers: Math.max(0, Math.round(profile.baseNewMembers * (1 + 0.3 * noise(seedBase + i + 200)) + i * 0.4)),
+    };
+  });
+}
+
+export function mockWeekdayShare(restaurantId: string): number[] {
+  return analyticsProfiles[restaurantId]?.weekdayShare ?? [0, 0, 0, 0, 0, 0, 0];
 }

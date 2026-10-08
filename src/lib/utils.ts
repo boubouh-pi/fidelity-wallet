@@ -22,3 +22,8 @@ export function addDays(isoDate: string, days: number) {
 export function formatDate(isoDate: string) {
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${isoDate}T00:00:00Z`));
 }
+
+/** "2026-09-28" -> "Sep 28". UTC, like formatDate. */
+export function formatShortDate(isoDate: string) {
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${isoDate}T00:00:00Z`));
+}

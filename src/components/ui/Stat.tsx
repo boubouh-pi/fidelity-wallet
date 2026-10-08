@@ -18,8 +18,8 @@ export function Stat({
     <Card className="flex items-start justify-between gap-4">
       <div className="min-w-0">
         <p className="text-sm font-medium text-slate-500">{label}</p>
-        <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums text-slate-900">{value}</p>
-        {children && <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">{children}</div>}
+        <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{value}</p>
+        {children && <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">{children}</div>}
       </div>
       {Icon && (
         <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
