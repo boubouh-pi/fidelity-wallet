@@ -1,28 +1,67 @@
 /**
- * Data access layer. Restaurant data is always read through a restaurantId;
- * provider-wide reads are grouped at the end. Components never
- * import mock data directly. To connect a real backend, replace the bodies
- * here with fetch() calls; signatures and return types stay the same.
+ * Data access layer, backed by Postgres (src/db). Restaurant data is always read and
+ * written through a restaurantId; provider-wide reads are grouped at the end.
+ * Components never touch the database or the demo generators directly.
+ *
+ * Every read waits for a request (`connection()`), so pages are never frozen at
+ * build time and the build never needs the database.
  */
+import { randomUUID } from "node:crypto";
+import { and, asc, count, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { connection } from "next/server";
-import {
-  mockActivity, mockCards, mockCustomers, mockMetrics, mockPreviewSamples, mockPromotions, mockRedemptions, mockRestaurants,
-  mockAnalyticsWeeks, mockProfiles, mockProgramPermissions, mockWeekdayShare, seedMockPromotions,
-} from "@/data/mock";
-import { addDays } from "@/lib/utils";
+import { mockActivity, mockAnalyticsWeeks, mockMetrics, mockPreviewSamples, mockWeekdayShare } from "@/data/mock";
+import { getDb, schema } from "@/db";
+import { addDays, formatRelativeDay } from "@/lib/utils";
 import type {
   Activity, Customer, DashboardMetric, EditableProgramField, LoyaltyCardPreviewData, LoyaltyProgram, Promotion,
   PromotionStatus, PromotionWithStatus, Redemption, Restaurant, RestaurantAnalytics, RestaurantProfile,
   RestaurantSettings, RestaurantSummary,
 } from "@/types";
 
+const { customers, loyaltyCards, loyaltyPrograms, promotions, redemptions, restaurantProfiles, restaurants } = schema;
+
+async function db() {
+  await connection();
+  return getDb();
+}
+
+/** Today's date (YYYY-MM-DD, UTC). Waits for a request so the date is never frozen at build time. */
+export async function getToday(): Promise<string> {
+  await connection();
+  return new Date().toISOString().slice(0, 10);
+}
+
+// ---------------------------------------------------------------------------
+// Row -> domain type mapping
+
+type ProgramRow = typeof loyaltyPrograms.$inferSelect;
+type CustomerRow = typeof customers.$inferSelect;
+
+const EDITABLE_FIELDS: EditableProgramField[] = ["rewardDescription", "expiresInDays"];
+
+function toProgram(row: ProgramRow): LoyaltyProgram {
+  const { id, restaurantId, stampsRequired, rewardTitle, rewardDescription, expiresInDays } = row;
+  return { id, restaurantId, stampsRequired, rewardTitle, rewardDescription, expiresInDays };
+}
+
+function toCustomer({ lastVisitAt, ...row }: CustomerRow, today: string): Customer {
+  return { ...row, lastVisit: formatRelativeDay(lastVisitAt, today) };
+}
+
+// ---------------------------------------------------------------------------
+// Restaurants
+
 export async function listRestaurants(): Promise<Restaurant[]> {
-  return mockRestaurants;
+  return (await db()).select().from(restaurants).orderBy(asc(restaurants.name));
 }
 
 export async function getRestaurant(restaurantId: string): Promise<Restaurant | null> {
-  return mockRestaurants.find((r) => r.id === restaurantId) ?? null;
+  const [row] = await (await db()).select().from(restaurants).where(eq(restaurants.id, restaurantId));
+  return row ?? null;
 }
+
+// ---------------------------------------------------------------------------
+// Dashboard (demo figures, except the live promotion count)
 
 export async function getDashboardMetrics(restaurantId: string): Promise<DashboardMetric[]> {
   const metrics = mockMetrics[restaurantId] ?? [];
@@ -34,95 +73,107 @@ export async function getRecentActivity(restaurantId: string): Promise<Activity[
   return mockActivity[restaurantId] ?? [];
 }
 
-export async function getRestaurantCustomers(restaurantId: string): Promise<Customer[]> {
-  return mockCustomers[restaurantId] ?? [];
-}
+// ---------------------------------------------------------------------------
+// Loyalty program & card
 
 export async function getLoyaltyProgram(restaurantId: string): Promise<LoyaltyProgram | null> {
-  return mockCards[restaurantId]?.program ?? null;
+  const [row] = await (await db()).select().from(loyaltyPrograms).where(eq(loyaltyPrograms.restaurantId, restaurantId));
+  return row ? toProgram(row) : null;
 }
 
 export async function getLoyaltyCardPreview(restaurantId: string): Promise<LoyaltyCardPreviewData | null> {
-  const card = mockCards[restaurantId];
+  const database = await db();
+  const [[card], program] = await Promise.all([
+    database.select().from(loyaltyCards).where(eq(loyaltyCards.restaurantId, restaurantId)),
+    getLoyaltyProgram(restaurantId),
+  ]);
   const sample = mockPreviewSamples[restaurantId];
-  if (!card || !sample) return null;
-  return { card, sample };
+  if (!card || !program || !sample) return null;
+  const { displayName, tagline, brandColor, accentColor, logoUrl } = card;
+  return { card: { id: card.id, restaurantId, design: { displayName, tagline, brandColor, accentColor, logoUrl }, program }, sample };
+}
+
+// ---------------------------------------------------------------------------
+// Customers, stamps and rewards
+
+export async function getRestaurantCustomers(restaurantId: string): Promise<Customer[]> {
+  const [rows, today] = await Promise.all([
+    (await db()).select().from(customers).where(eq(customers.restaurantId, restaurantId)).orderBy(asc(customers.memberId)),
+    getToday(),
+  ]);
+  return rows.map((row) => toCustomer(row, today));
 }
 
 /**
- * Applies a change to one of the restaurant's customers. Returns the updated
- * customer, or null if the customer does not belong to this restaurant or the
- * change is not allowed.
+ * Adds one stamp. A single conditional UPDATE, so the card can never go past the
+ * reward threshold, even with double clicks. Returns null if the customer is not
+ * this restaurant's or the card is already full.
  */
-async function updateCustomer(
-  restaurantId: string,
-  customerId: string,
-  change: (customer: Customer, program: LoyaltyProgram) => Customer | null,
-): Promise<Customer | null> {
-  const customers = mockCustomers[restaurantId];
-  const program = await getLoyaltyProgram(restaurantId);
-  const customer = customers?.find((c) => c.id === customerId);
-  if (!customers || !program || !customer) return null;
-
-  const updated = change(customer, program);
-  if (!updated) return null;
-  mockCustomers[restaurantId] = customers.map((c) => (c.id === customerId ? updated : c));
-  return updated;
-}
-
 export async function awardStamp(restaurantId: string, customerId: string): Promise<Customer | null> {
-  return updateCustomer(restaurantId, customerId, (customer, program) =>
-    customer.stamps >= program.stampsRequired
-      ? null
-      : { ...customer, stamps: customer.stamps + 1, lastVisit: "Just now" },
-  );
+  const program = await getLoyaltyProgram(restaurantId);
+  if (!program) return null;
+  const [row] = await (await db())
+    .update(customers)
+    .set({ stamps: sql`${customers.stamps} + 1`, lastVisitAt: new Date() })
+    .where(and(eq(customers.id, customerId), eq(customers.restaurantId, restaurantId), lt(customers.stamps, program.stampsRequired)))
+    .returning();
+  return row ? toCustomer(row, await getToday()) : null;
 }
 
+/** Resets a full card and records the redemption, both or neither (one transaction). */
 export async function redeemReward(restaurantId: string, customerId: string): Promise<Customer | null> {
   const program = await getLoyaltyProgram(restaurantId);
   if (!program) return null;
-  const updated = await updateCustomer(restaurantId, customerId, (customer) =>
-    customer.stamps < program.stampsRequired
-      ? null
-      : { ...customer, stamps: 0, lastVisit: "Just now" },
-  );
-  if (!updated) return null;
-
-  const history = mockRedemptions[restaurantId] ?? [];
-  mockRedemptions[restaurantId] = [
-    {
-      id: `${restaurantId}-rd-${history.length + 1}`,
+  const row = await (await db()).transaction(async (tx) => {
+    const [updated] = await tx
+      .update(customers)
+      .set({ stamps: 0, lastVisitAt: new Date() })
+      .where(and(eq(customers.id, customerId), eq(customers.restaurantId, restaurantId), gte(customers.stamps, program.stampsRequired)))
+      .returning();
+    if (!updated) return null;
+    await tx.insert(redemptions).values({
+      id: randomUUID(),
       restaurantId,
       customerId,
       customerName: updated.name,
       rewardTitle: program.rewardTitle,
-      redeemedAt: "Just now",
-    },
-    ...history,
-  ];
-  return updated;
+    });
+    return updated;
+  });
+  return row ? toCustomer(row, await getToday()) : null;
 }
 
 /** Customers whose card is full and who can claim the reward now. */
 export async function getRewardReadyCustomers(restaurantId: string): Promise<Customer[]> {
-  const [customers, program] = await Promise.all([
-    getRestaurantCustomers(restaurantId),
-    getLoyaltyProgram(restaurantId),
-  ]);
+  const program = await getLoyaltyProgram(restaurantId);
   if (!program) return [];
-  return customers.filter((c) => c.stamps >= program.stampsRequired);
+  const [rows, today] = await Promise.all([
+    (await db())
+      .select()
+      .from(customers)
+      .where(and(eq(customers.restaurantId, restaurantId), gte(customers.stamps, program.stampsRequired)))
+      .orderBy(asc(customers.name)),
+    getToday(),
+  ]);
+  return rows.map((row) => toCustomer(row, today));
 }
 
-/** Reward redemptions for one restaurant, newest first. */
+/** Reward redemptions for one restaurant, newest first (latest 50). */
 export async function getRedemptions(restaurantId: string): Promise<Redemption[]> {
-  return mockRedemptions[restaurantId] ?? [];
+  const [rows, today] = await Promise.all([
+    (await db())
+      .select()
+      .from(redemptions)
+      .where(eq(redemptions.restaurantId, restaurantId))
+      .orderBy(desc(redemptions.redeemedAt))
+      .limit(50),
+    getToday(),
+  ]);
+  return rows.map(({ redeemedAt, ...r }) => ({ ...r, redeemedAt: formatRelativeDay(redeemedAt, today) }));
 }
 
-/** Today's date (YYYY-MM-DD, UTC). Waits for a request so the date is never frozen at build time. */
-export async function getToday(): Promise<string> {
-  await connection();
-  return new Date().toISOString().slice(0, 10);
-}
+// ---------------------------------------------------------------------------
+// Promotions
 
 function promotionStatus(promotion: Promotion, onDate: string): PromotionStatus {
   if (promotion.endedEarly || onDate > promotion.endDate) return "ended";
@@ -134,10 +185,12 @@ const statusOrder: Record<PromotionStatus, number> = { active: 0, scheduled: 1, 
 
 /** A restaurant's promotions: active first, then scheduled, then ended. */
 export async function getPromotions(restaurantId: string): Promise<PromotionWithStatus[]> {
-  const date = await getToday();
-  seedMockPromotions(date);
-  return (mockPromotions[restaurantId] ?? [])
-    .map((p) => ({ ...p, status: promotionStatus(p, date) }))
+  const [rows, today] = await Promise.all([
+    (await db()).select().from(promotions).where(eq(promotions.restaurantId, restaurantId)),
+    getToday(),
+  ]);
+  return rows
+    .map((p) => ({ ...p, status: promotionStatus(p, today) }))
     .sort((a, b) =>
       statusOrder[a.status] - statusOrder[b.status] ||
       (a.status === "ended" ? b.endDate.localeCompare(a.endDate) : a.startDate.localeCompare(b.startDate)),
@@ -169,19 +222,14 @@ export async function createPromotion(restaurantId: string, input: NewPromotion)
   if (input.endDate < input.startDate) return { ok: false, error: "The end date must be on or after the start date." };
   if (input.endDate < (await getToday())) return { ok: false, error: "The end date cannot be in the past." };
 
-  const promotions = mockPromotions[restaurantId] ?? [];
-  mockPromotions[restaurantId] = [
-    ...promotions,
-    {
-      id: `${restaurantId}-promo-${promotions.length + 1}`,
-      restaurantId,
-      title,
-      description,
-      startDate: input.startDate,
-      endDate: input.endDate,
-      endedEarly: false,
-    },
-  ];
+  await (await db()).insert(promotions).values({
+    id: randomUUID(),
+    restaurantId,
+    title,
+    description,
+    startDate: input.startDate,
+    endDate: input.endDate,
+  });
   return { ok: true, promotions: await getPromotions(restaurantId) };
 }
 
@@ -191,11 +239,15 @@ export async function endPromotion(restaurantId: string, promotionId: string): P
   if (!current) return { ok: false, error: "Promotion not found." };
   if (current.status === "ended") return { ok: false, error: "This promotion has already ended." };
 
-  mockPromotions[restaurantId] = (mockPromotions[restaurantId] ?? []).map((p) =>
-    p.id === promotionId ? { ...p, endedEarly: true } : p,
-  );
+  await (await db())
+    .update(promotions)
+    .set({ endedEarly: true })
+    .where(and(eq(promotions.id, promotionId), eq(promotions.restaurantId, restaurantId)));
   return { ok: true, promotions: await getPromotions(restaurantId) };
 }
+
+// ---------------------------------------------------------------------------
+// Analytics (demo series until real stamp events exist)
 
 /** Weeks of history kept for analytics: enough to compare a 12-week period with the one before it. */
 const ANALYTICS_WEEKS = 24;
@@ -211,11 +263,21 @@ export async function getAnalytics(restaurantId: string): Promise<RestaurantAnal
   };
 }
 
+// ---------------------------------------------------------------------------
+// Settings
+
 export async function getRestaurantSettings(restaurantId: string): Promise<RestaurantSettings | null> {
-  const profile = mockProfiles[restaurantId];
-  const program = await getLoyaltyProgram(restaurantId);
+  const database = await db();
+  const [[profile], [program]] = await Promise.all([
+    database.select().from(restaurantProfiles).where(eq(restaurantProfiles.restaurantId, restaurantId)),
+    database.select().from(loyaltyPrograms).where(eq(loyaltyPrograms.restaurantId, restaurantId)),
+  ]);
   if (!profile || !program) return null;
-  return { profile, program, editableProgramFields: mockProgramPermissions[restaurantId] ?? [] };
+  return {
+    profile,
+    program: toProgram(program),
+    editableProgramFields: EDITABLE_FIELDS.filter((f) => program.editableFields.includes(f)),
+  };
 }
 
 export type SettingsResult<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -224,10 +286,7 @@ export async function updateRestaurantProfile(
   restaurantId: string,
   input: Omit<RestaurantProfile, "restaurantId">,
 ): Promise<SettingsResult<RestaurantProfile>> {
-  if (!mockProfiles[restaurantId]) return { ok: false, error: "Restaurant not found." };
-
   const profile = {
-    restaurantId,
     contactEmail: input.contactEmail.trim(),
     phone: input.phone.trim(),
     address: input.address.trim(),
@@ -244,8 +303,12 @@ export async function updateRestaurantProfile(
     return { ok: false, error: "The website must start with http:// or https://." };
   }
 
-  mockProfiles[restaurantId] = profile;
-  return { ok: true, value: profile };
+  const [row] = await (await db())
+    .update(restaurantProfiles)
+    .set(profile)
+    .where(eq(restaurantProfiles.restaurantId, restaurantId))
+    .returning();
+  return row ? { ok: true, value: row } : { ok: false, error: "Restaurant not found." };
 }
 
 /**
@@ -256,46 +319,58 @@ export async function updateLoyaltySettings(
   restaurantId: string,
   changes: Partial<Pick<LoyaltyProgram, EditableProgramField>>,
 ): Promise<SettingsResult<LoyaltyProgram>> {
-  const card = mockCards[restaurantId];
-  if (!card) return { ok: false, error: "Restaurant not found." };
+  const database = await db();
+  const [program] = await database.select().from(loyaltyPrograms).where(eq(loyaltyPrograms.restaurantId, restaurantId));
+  if (!program) return { ok: false, error: "Restaurant not found." };
 
-  const allowed = mockProgramPermissions[restaurantId] ?? [];
   const fields = Object.keys(changes) as EditableProgramField[];
-  if (fields.some((field) => !allowed.includes(field))) {
+  if (fields.some((field) => !program.editableFields.includes(field))) {
     return { ok: false, error: "This setting is managed by Fidelity Wallet. Contact us to change it." };
   }
 
-  const next = { ...card.program };
+  const update: Partial<Pick<LoyaltyProgram, EditableProgramField>> = {};
   if (changes.rewardDescription !== undefined) {
     const description = changes.rewardDescription.trim();
     if (!description || description.length > 120) {
       return { ok: false, error: "The reward description must be between 1 and 120 characters." };
     }
-    next.rewardDescription = description;
+    update.rewardDescription = description;
   }
   if (changes.expiresInDays !== undefined) {
     const days = changes.expiresInDays;
     if (!Number.isInteger(days) || days < 30 || days > 730) {
       return { ok: false, error: "Reward validity must be between 30 and 730 days." };
     }
-    next.expiresInDays = days;
+    update.expiresInDays = days;
   }
+  if (Object.keys(update).length === 0) return { ok: true, value: toProgram(program) };
 
-  mockCards[restaurantId] = { ...card, program: next };
-  return { ok: true, value: next };
+  const [row] = await database
+    .update(loyaltyPrograms)
+    .set(update)
+    .where(eq(loyaltyPrograms.restaurantId, restaurantId))
+    .returning();
+  return { ok: true, value: toProgram(row) };
 }
 
+// ---------------------------------------------------------------------------
 /**
  * Provider-side (Fidelity Wallet admin) reads across all restaurants.
  * Never call these from the restaurant dashboard.
  */
 export async function listRestaurantSummaries(): Promise<RestaurantSummary[]> {
-  const restaurants = await listRestaurants();
-  return Promise.all(
-    restaurants.map(async (restaurant) => ({
+  const database = await db();
+  const [restaurantRows, programRows, counts] = await Promise.all([
+    listRestaurants(),
+    database.select().from(loyaltyPrograms),
+    database.select({ restaurantId: customers.restaurantId, value: count() }).from(customers).groupBy(customers.restaurantId),
+  ]);
+  return restaurantRows.map((restaurant) => {
+    const program = programRows.find((p) => p.restaurantId === restaurant.id);
+    return {
       restaurant,
-      program: await getLoyaltyProgram(restaurant.id),
-      customerCount: (await getRestaurantCustomers(restaurant.id)).length,
-    })),
-  );
+      program: program ? toProgram(program) : null,
+      customerCount: counts.find((c) => c.restaurantId === restaurant.id)?.value ?? 0,
+    };
+  });
 }

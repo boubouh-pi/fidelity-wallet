@@ -93,7 +93,7 @@ For the current prototype, use mock data and show a representative preview. Do n
 ## Current MVP
 
 - A restaurant-facing dashboard for the selected restaurant client.
-- Mock/demo restaurants and restaurant-scoped mock data.
+- Demo restaurants stored in Postgres, with restaurant-scoped data (dashboard figures and analytics remain generated demo data until real events exist).
 - Dashboard overview and navigation for card, customers, rewards, promotions, analytics, and settings.
 - A loyalty card preview that communicates the restaurant's program and provider-managed initial design.
 - Clear indication of which restaurant account is being managed.
@@ -105,7 +105,7 @@ Some dashboard sections may remain placeholders while the product foundation is 
 
 - Restaurant onboarding and the Fidelity Wallet internal admin platform.
 - Account authentication, roles, and server-side authorization.
-- Persistent backend storage and operational restaurant data.
+- Operational restaurant data (real stamps, wallet events) replacing the generated demo figures.
 - Apple Wallet and Google Wallet pass creation, distribution, and updates.
 - Customer, loyalty progress, reward, promotion, analytics, and account-management workflows.
 - Optional, controlled restaurant card customization.
@@ -137,11 +137,11 @@ Some dashboard sections may remain placeholders while the product foundation is 
 
 ## Technical Architecture
 
-The current foundation is Next.js 16 App Router, TypeScript, Tailwind CSS 4, and lucide-react. The restaurant dashboard uses a dynamic restaurant route, a shared restaurant layout, typed domain models, and a service layer currently backed by mock data.
+The current foundation is Next.js 16 App Router, TypeScript, Tailwind CSS 4, lucide-react, and Postgres through Drizzle ORM. The restaurant dashboard uses a dynamic restaurant route, a shared restaurant layout, typed domain models, and a service layer backed by Postgres. Every restaurant-owned table carries a restaurant ID that every service query filters on.
 
 Keep restaurant-specific data access behind the service layer and pass the active restaurant identity into reads and mutations. As the backend is added, enforce tenant isolation and authorization on the server. Do not add database, deployment, or multi-tenant infrastructure before the product needs it.
 
-The current prototype is not a production-secure multi-tenant system: it has no authentication, authorization, wallet integrations, or persistent backend.
+The current prototype is not a production-secure multi-tenant system: it has persistent storage but no authentication, authorization, or wallet integrations.
 
 ## Development Rules
 

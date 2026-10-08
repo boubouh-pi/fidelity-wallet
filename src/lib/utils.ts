@@ -27,3 +27,13 @@ export function formatDate(isoDate: string) {
 export function formatShortDate(isoDate: string) {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${isoDate}T00:00:00Z`));
 }
+
+/** "Today", "Yesterday", "3 days ago", then a date. Days are compared in UTC, like the rest of the app. */
+export function formatRelativeDay(date: Date, today: string) {
+  const day = date.toISOString().slice(0, 10);
+  const diff = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${day}T00:00:00Z`)) / 86_400_000);
+  if (diff <= 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  if (diff < 7) return `${diff} days ago`;
+  return formatDate(day);
+}

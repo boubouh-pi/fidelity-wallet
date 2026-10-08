@@ -1,19 +1,11 @@
 /**
- * DEMO DATA ONLY. These restaurants are fictional examples used to
- * demonstrate the multi-restaurant structure. Nothing in the app may
- * depend on a specific one of them.
+ * DEMO DATA ONLY, generated at display time: dashboard figures, recent activity,
+ * the card-preview sample and analytics. There is no real source for these yet;
+ * they will be computed from real stamps and wallet events once those exist.
+ * Everything a restaurant creates or edits lives in the database (see src/db).
  */
-import type {
-  Activity, AnalyticsWeek, Customer, DashboardMetric, EditableProgramField, LoyaltyCard, LoyaltyCardPreviewData, Promotion,
-  Redemption, Restaurant, RestaurantProfile,
-} from "@/types";
+import type { Activity, AnalyticsWeek, DashboardMetric, LoyaltyCardPreviewData } from "@/types";
 import { addDays } from "@/lib/utils";
-
-export const mockRestaurants: Restaurant[] = [
-  { id: "chez-marcel", name: "Chez Marcel", category: "Bistro & Café", city: "Ottawa", status: "active" },
-  { id: "cafe-roma", name: "Café Roma", category: "Italian Café", city: "Gatineau", status: "active" },
-  { id: "burger-house", name: "Burger House", category: "Burgers", city: "Montréal", status: "onboarding" },
-];
 
 const metrics = (customers: number, cards: number, redeemed: number, promos: number): DashboardMetric[] => [
   { id: "customers", label: "Active customers", value: customers, change: 8.2, hint: "Last 30 days" },
@@ -41,114 +33,12 @@ export const mockActivity: Record<string, Activity[]> = {
   "burger-house": [],
 };
 
-const customer = (
-  id: string,
-  restaurantId: string,
-  name: string,
-  memberId: string,
-  stamps: number,
-  lastVisit: string,
-): Customer => ({ id, restaurantId, name, memberId, stamps, lastVisit });
-
-/** In-memory store: customer actions update it until the server restarts. */
-export const mockCustomers: Record<string, Customer[]> = {
-  "chez-marcel": [
-    customer("cm-1", "chez-marcel", "Sofia Martin", "FW-0042-8817", 6, "2 min ago"),
-    customer("cm-2", "chez-marcel", "Lucas Bernard", "FW-0042-8818", 10, "Today, 11:24 AM"),
-    customer("cm-3", "chez-marcel", "Amina Khan", "FW-0042-8819", 3, "Yesterday"),
-    customer("cm-4", "chez-marcel", "Tom Robinson", "FW-0042-8820", 0, "Joined today"),
-    customer("cm-5", "chez-marcel", "Chloe Dubois", "FW-0042-8821", 9, "Monday"),
-  ],
-  "cafe-roma": [
-    customer("cr-1", "cafe-roma", "Giulia Pellegrini", "FW-0107-2401", 7, "18 min ago"),
-    customer("cr-2", "cafe-roma", "Marco De Luca", "FW-0107-2402", 8, "Today, 9:42 AM"),
-    customer("cr-3", "cafe-roma", "Elena Santini", "FW-0107-2403", 4, "Yesterday"),
-  ],
-  "burger-house": [],
-};
-
-const card = (
-  restaurantId: string,
-  design: LoyaltyCard["design"],
-  program: Omit<LoyaltyCard["program"], "id" | "restaurantId">,
-): LoyaltyCard => ({
-  id: `card_${restaurantId}`,
-  restaurantId,
-  design,
-  program: { id: `prog_${restaurantId}`, restaurantId, ...program },
-});
-
-export const mockCards: Record<string, LoyaltyCard> = {
-  "chez-marcel": card(
-    "chez-marcel",
-    { displayName: "Chez Marcel", tagline: "Bistro & Café", brandColor: "#1f3a2e", accentColor: "#e9b44c", logoUrl: null },
-    { stampsRequired: 10, rewardTitle: "Free dessert", rewardDescription: "Any dessert from our menu after 10 visits.", expiresInDays: 365 },
-  ),
-  "cafe-roma": card(
-    "cafe-roma",
-    { displayName: "Café Roma", tagline: "Italian Café", brandColor: "#7a2e1d", accentColor: "#f4d9a8", logoUrl: null },
-    { stampsRequired: 8, rewardTitle: "Free espresso", rewardDescription: "One espresso of your choice after 8 visits.", expiresInDays: 180 },
-  ),
-  "burger-house": card(
-    "burger-house",
-    { displayName: "Burger House", tagline: "Burgers", brandColor: "#222222", accentColor: "#ff6b35", logoUrl: null },
-    { stampsRequired: 6, rewardTitle: "Free fries", rewardDescription: "A side of fries after 6 visits.", expiresInDays: 365 },
-  ),
-};
-
 /** Sample customer shown on each restaurant's loyalty card preview. */
 export const mockPreviewSamples: Record<string, LoyaltyCardPreviewData["sample"]> = {
   "chez-marcel": { customerName: "Sofia Martin", stamps: 6, memberId: "FW-0042-8817" },
   "cafe-roma": { customerName: "Giulia Pellegrini", stamps: 5, memberId: "FW-0107-2401" },
   "burger-house": { customerName: "Sample Customer", stamps: 4, memberId: "FW-0213-0001" },
 };
-
-/** In-memory store, newest first: redeeming a reward adds to it until the server restarts. */
-export const mockRedemptions: Record<string, Redemption[]> = {
-  "chez-marcel": [
-    { id: "chez-marcel-rd-3", restaurantId: "chez-marcel", customerId: "cm-5", customerName: "Chloe Dubois", rewardTitle: "Free dessert", redeemedAt: "Last week" },
-    { id: "chez-marcel-rd-2", restaurantId: "chez-marcel", customerId: "cm-1", customerName: "Sofia Martin", rewardTitle: "Free dessert", redeemedAt: "2 weeks ago" },
-    { id: "chez-marcel-rd-1", restaurantId: "chez-marcel", customerId: "cm-3", customerName: "Amina Khan", rewardTitle: "Free dessert", redeemedAt: "Last month" },
-  ],
-  "cafe-roma": [
-    { id: "cafe-roma-rd-1", restaurantId: "cafe-roma", customerId: "cr-1", customerName: "Giulia Pellegrini", rewardTitle: "Free espresso", redeemedAt: "Last week" },
-  ],
-  "burger-house": [],
-};
-
-type PromotionSeed = Pick<Promotion, "title" | "description"> & { startInDays: number; endInDays: number };
-
-/** Demo promotions, with dates relative to today so the demo always shows each status. */
-const promotionSeeds: Record<string, PromotionSeed[]> = {
-  "chez-marcel": [
-    { title: "Double stamps on Tuesdays", description: "Earn 2 stamps per visit every Tuesday.", startInDays: -6, endInDays: 24 },
-    { title: "Holiday dessert week", description: "A free mini dessert with any main course.", startInDays: 20, endInDays: 27 },
-    { title: "Summer terrace bonus", description: "A bonus stamp for meals on the terrace.", startInDays: -90, endInDays: -30 },
-  ],
-  "cafe-roma": [
-    { title: "Espresso happy hour", description: "A bonus stamp on any espresso between 3 and 5 pm.", startInDays: -3, endInDays: 11 },
-    { title: "Back to school", description: "Double stamps for students with a valid card.", startInDays: -40, endInDays: -10 },
-  ],
-  "burger-house": [],
-};
-
-/** In-memory store, filled on first use. Promotion actions update it until the server restarts. */
-export const mockPromotions: Record<string, Promotion[]> = {};
-
-export function seedMockPromotions(today: string) {
-  if (Object.keys(mockPromotions).length > 0) return;
-  for (const [restaurantId, seeds] of Object.entries(promotionSeeds)) {
-    mockPromotions[restaurantId] = seeds.map((seed, i) => ({
-      id: `${restaurantId}-promo-${i + 1}`,
-      restaurantId,
-      title: seed.title,
-      description: seed.description,
-      startDate: addDays(today, seed.startInDays),
-      endDate: addDays(today, seed.endInDays),
-      endedEarly: false,
-    }));
-  }
-}
 
 interface AnalyticsProfile {
   /** Visits in the oldest week, and weekly growth rate. */
@@ -198,25 +88,3 @@ export function mockAnalyticsWeeks(restaurantId: string, currentMonday: string, 
 export function mockWeekdayShare(restaurantId: string): number[] {
   return analyticsProfiles[restaurantId]?.weekdayShare ?? [0, 0, 0, 0, 0, 0, 0];
 }
-
-/** In-memory store: profile edits update it until the server restarts. */
-export const mockProfiles: Record<string, RestaurantProfile> = {
-  "chez-marcel": {
-    restaurantId: "chez-marcel", contactEmail: "contact@chezmarcel.example", phone: "(613) 555-0142",
-    address: "12 Murray Street, Ottawa, ON", website: "https://chezmarcel.example",
-  },
-  "cafe-roma": {
-    restaurantId: "cafe-roma", contactEmail: "ciao@caferoma.example", phone: "(819) 555-0178",
-    address: "85 Rue Principale, Gatineau, QC", website: "",
-  },
-  "burger-house": {
-    restaurantId: "burger-house", contactEmail: "hello@burgerhouse.example", phone: "", address: "", website: "",
-  },
-};
-
-/** Program fields each restaurant may edit, as decided by Fidelity Wallet. */
-export const mockProgramPermissions: Record<string, EditableProgramField[]> = {
-  "chez-marcel": ["rewardDescription", "expiresInDays"],
-  "cafe-roma": ["rewardDescription"],
-  "burger-house": [],
-};
