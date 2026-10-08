@@ -4,8 +4,15 @@
  * import mock data directly. To connect a real backend, replace the bodies
  * here with fetch() calls; signatures and return types stay the same.
  */
-import { mockActivity, mockCards, mockCustomers, mockMetrics, mockPreviewSamples, mockRedemptions, mockRestaurants } from "@/data/mock";
-import type { Activity, Customer, DashboardMetric, LoyaltyCardPreviewData, LoyaltyProgram, Redemption, Restaurant, RestaurantSummary } from "@/types";
+import { connection } from "next/server";
+import {
+  mockActivity, mockCards, mockCustomers, mockMetrics, mockPreviewSamples, mockPromotions, mockRedemptions, mockRestaurants,
+  seedMockPromotions,
+} from "@/data/mock";
+import type {
+  Activity, Customer, DashboardMetric, LoyaltyCardPreviewData, LoyaltyProgram, Promotion, PromotionStatus,
+  PromotionWithStatus, Redemption, Restaurant, RestaurantSummary,
+} from "@/types";
 
 export async function listRestaurants(): Promise<Restaurant[]> {
   return mockRestaurants;
@@ -16,7 +23,9 @@ export async function getRestaurant(restaurantId: string): Promise<Restaurant | 
 }
 
 export async function getDashboardMetrics(restaurantId: string): Promise<DashboardMetric[]> {
-  return mockMetrics[restaurantId] ?? [];
+  const metrics = mockMetrics[restaurantId] ?? [];
+  const activePromotions = (await getPromotions(restaurantId)).filter((p) => p.status === "active").length;
+  return metrics.map((m) => (m.id === "promos" ? { ...m, value: activePromotions } : m));
 }
 
 export async function getRecentActivity(restaurantId: string): Promise<Activity[]> {
@@ -105,6 +114,85 @@ export async function getRewardReadyCustomers(restaurantId: string): Promise<Cus
 /** Reward redemptions for one restaurant, newest first. */
 export async function getRedemptions(restaurantId: string): Promise<Redemption[]> {
   return mockRedemptions[restaurantId] ?? [];
+}
+
+/** Today's date (YYYY-MM-DD, UTC). Waits for a request so the date is never frozen at build time. */
+export async function getToday(): Promise<string> {
+  await connection();
+  return new Date().toISOString().slice(0, 10);
+}
+
+function promotionStatus(promotion: Promotion, onDate: string): PromotionStatus {
+  if (promotion.endedEarly || onDate > promotion.endDate) return "ended";
+  if (onDate < promotion.startDate) return "scheduled";
+  return "active";
+}
+
+const statusOrder: Record<PromotionStatus, number> = { active: 0, scheduled: 1, ended: 2 };
+
+/** A restaurant's promotions: active first, then scheduled, then ended. */
+export async function getPromotions(restaurantId: string): Promise<PromotionWithStatus[]> {
+  const date = await getToday();
+  seedMockPromotions(date);
+  return (mockPromotions[restaurantId] ?? [])
+    .map((p) => ({ ...p, status: promotionStatus(p, date) }))
+    .sort((a, b) =>
+      statusOrder[a.status] - statusOrder[b.status] ||
+      (a.status === "ended" ? b.endDate.localeCompare(a.endDate) : a.startDate.localeCompare(b.startDate)),
+    );
+}
+
+export interface NewPromotion {
+  title: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+}
+
+export type PromotionResult =
+  | { ok: true; promotions: PromotionWithStatus[] }
+  | { ok: false; error: string };
+
+const isDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
+
+export async function createPromotion(restaurantId: string, input: NewPromotion): Promise<PromotionResult> {
+  if (!(await getRestaurant(restaurantId))) return { ok: false, error: "Restaurant not found." };
+
+  const title = input.title.trim();
+  const description = input.description.trim();
+  if (!title) return { ok: false, error: "Give the promotion a title." };
+  if (title.length > 60) return { ok: false, error: "The title must be 60 characters or fewer." };
+  if (description.length > 200) return { ok: false, error: "The description must be 200 characters or fewer." };
+  if (!isDate(input.startDate) || !isDate(input.endDate)) return { ok: false, error: "Choose a start and an end date." };
+  if (input.endDate < input.startDate) return { ok: false, error: "The end date must be on or after the start date." };
+  if (input.endDate < (await getToday())) return { ok: false, error: "The end date cannot be in the past." };
+
+  const promotions = mockPromotions[restaurantId] ?? [];
+  mockPromotions[restaurantId] = [
+    ...promotions,
+    {
+      id: `${restaurantId}-promo-${promotions.length + 1}`,
+      restaurantId,
+      title,
+      description,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      endedEarly: false,
+    },
+  ];
+  return { ok: true, promotions: await getPromotions(restaurantId) };
+}
+
+/** Stops an active promotion, or cancels a scheduled one. */
+export async function endPromotion(restaurantId: string, promotionId: string): Promise<PromotionResult> {
+  const current = (await getPromotions(restaurantId)).find((p) => p.id === promotionId);
+  if (!current) return { ok: false, error: "Promotion not found." };
+  if (current.status === "ended") return { ok: false, error: "This promotion has already ended." };
+
+  mockPromotions[restaurantId] = (mockPromotions[restaurantId] ?? []).map((p) =>
+    p.id === promotionId ? { ...p, endedEarly: true } : p,
+  );
+  return { ok: true, promotions: await getPromotions(restaurantId) };
 }
 
 /**

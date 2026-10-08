@@ -85,3 +85,19 @@ export interface Redemption {
   rewardTitle: string;
   redeemedAt: string;
 }
+
+export type PromotionStatus = "scheduled" | "active" | "ended";
+
+/** A limited-time offer a restaurant runs for its loyalty members. Dates are YYYY-MM-DD. */
+export interface Promotion {
+  id: string;
+  restaurantId: string;
+  title: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  /** Stopped by the restaurant before its end date. */
+  endedEarly: boolean;
+}
+
+export type PromotionWithStatus = Promotion & { status: PromotionStatus };

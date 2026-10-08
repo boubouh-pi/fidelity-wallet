@@ -3,7 +3,8 @@
  * demonstrate the multi-restaurant structure. Nothing in the app may
  * depend on a specific one of them.
  */
-import type { Activity, Customer, DashboardMetric, LoyaltyCard, LoyaltyCardPreviewData, Redemption, Restaurant } from "@/types";
+import type { Activity, Customer, DashboardMetric, LoyaltyCard, LoyaltyCardPreviewData, Promotion, Redemption, Restaurant } from "@/types";
+import { addDays } from "@/lib/utils";
 
 export const mockRestaurants: Restaurant[] = [
   { id: "chez-marcel", name: "Chez Marcel", category: "Bistro & Café", city: "Ottawa", status: "active" },
@@ -111,3 +112,37 @@ export const mockRedemptions: Record<string, Redemption[]> = {
   ],
   "burger-house": [],
 };
+
+type PromotionSeed = Pick<Promotion, "title" | "description"> & { startInDays: number; endInDays: number };
+
+/** Demo promotions, with dates relative to today so the demo always shows each status. */
+const promotionSeeds: Record<string, PromotionSeed[]> = {
+  "chez-marcel": [
+    { title: "Double stamps on Tuesdays", description: "Earn 2 stamps per visit every Tuesday.", startInDays: -6, endInDays: 24 },
+    { title: "Holiday dessert week", description: "A free mini dessert with any main course.", startInDays: 20, endInDays: 27 },
+    { title: "Summer terrace bonus", description: "A bonus stamp for meals on the terrace.", startInDays: -90, endInDays: -30 },
+  ],
+  "cafe-roma": [
+    { title: "Espresso happy hour", description: "A bonus stamp on any espresso between 3 and 5 pm.", startInDays: -3, endInDays: 11 },
+    { title: "Back to school", description: "Double stamps for students with a valid card.", startInDays: -40, endInDays: -10 },
+  ],
+  "burger-house": [],
+};
+
+/** In-memory store, filled on first use. Promotion actions update it until the server restarts. */
+export const mockPromotions: Record<string, Promotion[]> = {};
+
+export function seedMockPromotions(today: string) {
+  if (Object.keys(mockPromotions).length > 0) return;
+  for (const [restaurantId, seeds] of Object.entries(promotionSeeds)) {
+    mockPromotions[restaurantId] = seeds.map((seed, i) => ({
+      id: `${restaurantId}-promo-${i + 1}`,
+      restaurantId,
+      title: seed.title,
+      description: seed.description,
+      startDate: addDays(today, seed.startInDays),
+      endDate: addDays(today, seed.endInDays),
+      endedEarly: false,
+    }));
+  }
+}
