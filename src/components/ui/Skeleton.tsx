@@ -30,6 +30,7 @@ export function ShellSkeleton() {
     <div className="flex min-h-screen">
       <div className="hidden w-64 shrink-0 space-y-6 border-r border-slate-200 bg-white p-4 lg:block">
         <Skeleton className="h-9 w-40" />
+        <Skeleton className="h-14" />
         <div className="space-y-2">
           {Array.from({ length: 7 }, (_, i) => <Skeleton key={i} className="h-9" />)}
         </div>

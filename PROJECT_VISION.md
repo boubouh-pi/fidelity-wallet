@@ -72,7 +72,7 @@ The active restaurant/business should be identifiable throughout the dashboard. 
 
 A separate internal/provider platform may eventually support restaurant creation and onboarding, account management, initial card and program configuration, wallet integrations, platform monitoring, support, and global settings.
 
-At minimum, the provider experience needs a portfolio view listing all restaurant/business clients that have Fidelity Wallet cards, with their account status and card/program association. This view is distinct from the restaurant dashboard. A minimal, read-only version exists in the prototype at `/admin/restaurants`, with its own layout; the rest of the admin platform is not part of the current MVP. Do not add provider-only navigation or capabilities to the restaurant interface as a shortcut.
+At minimum, the provider experience needs a portfolio view listing all restaurant/business clients that have Fidelity Wallet cards, with their account status and card/program association. This view is distinct from the restaurant dashboard. A minimal, read-only version exists in the prototype at `/admin/restaurants`, with its own layout; the rest of the admin platform is not part of the current MVP. Do not add provider-only navigation or capabilities to the restaurant interface as a shortcut. The one exception is the prototype's restaurant switcher in the dashboard sidebar (switch demo restaurant, back to the restaurant list): it exists only because there is no authentication yet, and must be limited to Fidelity Wallet staff once accounts and roles exist.
 
 ## Multi-Restaurant Architecture
 
