@@ -2,11 +2,12 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { CustomerManagement } from "@/components/customers/CustomerManagement";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { PageSkeleton } from "@/components/ui/Skeleton";
 import { getLoyaltyProgram, getRestaurant, getRestaurantCustomers } from "@/services";
 
 export default function CustomersPage(props: PageProps<"/r/[restaurantId]/customers">) {
   return (
-    <Suspense fallback={<p role="status" className="text-sm text-neutral-500">Loading customers...</p>}>
+    <Suspense fallback={<PageSkeleton />}>
       <CustomersContent {...props} />
     </Suspense>
   );

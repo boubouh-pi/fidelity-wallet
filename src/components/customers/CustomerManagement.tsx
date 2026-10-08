@@ -1,8 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Gift, Plus, Search } from "lucide-react";
+import { Gift, Plus, Search, Stamp, Users } from "lucide-react";
 import { awardStamp, redeemReward } from "@/app/r/[restaurantId]/customers/actions";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Stat } from "@/components/ui/Stat";
+import { cn, formatNumber, initials } from "@/lib/utils";
 import type { Customer } from "@/types";
 
 type CustomerFilter = "all" | "ready" | "in-progress";
@@ -59,70 +63,77 @@ export function CustomerManagement({
 
   return (
     <>
-      <section aria-label="Customer program summary" className="grid gap-3 sm:grid-cols-3">
-        <Summary label="Sample profiles" value={customers.length.toLocaleString()} detail="In this restaurant" />
-        <Summary label="Reward ready" value={readyCount.toLocaleString()} detail={rewardTitle} />
-        <Summary label="Stamps on cards" value={totalStamps.toLocaleString()} detail={`Reward at ${stampsRequired} stamps`} />
+      <section aria-label="Customer program summary" className="grid gap-4 sm:grid-cols-3">
+        <Stat label="Loyalty members" value={formatNumber(customers.length)} icon={Users}>
+          Sample profiles in this restaurant
+        </Stat>
+        <Stat label="Reward ready" value={formatNumber(readyCount)} icon={Gift}>
+          {rewardTitle}
+        </Stat>
+        <Stat label="Stamps on cards" value={formatNumber(totalStamps)} icon={Stamp}>
+          Reward at {stampsRequired} stamps
+        </Stat>
       </section>
 
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <label className="relative block w-full sm:max-w-sm">
           <span className="sr-only">Search by customer name or member ID</span>
-          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search customers"
-            className="h-10 w-full rounded-lg border border-neutral-200 bg-white pl-9 pr-3 text-sm outline-none placeholder:text-neutral-400 focus:border-neutral-400"
+            placeholder="Search by name or member ID"
+            className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm shadow-sm outline-none placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
           />
         </label>
 
-        <div role="group" aria-label="Filter customers" className="flex flex-wrap gap-1 rounded-lg bg-neutral-100 p-1">
+        <div role="group" aria-label="Filter customers" className="flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1">
           {filters.map(({ id, label, count }) => (
             <button
               key={id}
               type="button"
               aria-pressed={filter === id}
               onClick={() => setFilter(id)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                filter === id ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-600 hover:text-neutral-900"
-              }`}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                filter === id ? "bg-white text-brand-700 shadow-sm" : "text-slate-600 hover:text-slate-900",
+              )}
             >
-              {label} <span className="ml-1 text-neutral-400">{count}</span>
+              {label} <span className="ml-1 text-slate-400">{count}</span>
             </button>
           ))}
         </div>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-neutral-200 bg-white">
+      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[850px] text-left text-sm">
-            <thead className="border-b border-neutral-200 bg-neutral-50 text-xs text-neutral-500">
+            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium uppercase tracking-wider text-slate-500">
               <tr>
                 <th scope="col" className="px-4 py-3 font-medium">Customer</th>
                 <th scope="col" className="px-4 py-3 font-medium">Member ID</th>
-                <th scope="col" className="w-56 px-4 py-3 font-medium">Stamp progress</th>
+                <th scope="col" className="w-60 px-4 py-3 font-medium">Stamp progress</th>
                 <th scope="col" className="px-4 py-3 font-medium">Last visit</th>
-                <th scope="col" className="px-4 py-3 font-medium">Actions</th>
+                <th scope="col" className="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100">
+            <tbody className="divide-y divide-slate-100">
               {visibleCustomers.map((customer) => {
                 const rewardReady = customer.stamps >= stampsRequired;
                 const progress = Math.min((customer.stamps / stampsRequired) * 100, 100);
 
                 return (
-                  <tr key={customer.id} className="align-middle">
-                    <th scope="row" className="px-4 py-3 text-left font-medium text-neutral-900">
+                  <tr key={customer.id} className="align-middle transition-colors hover:bg-slate-50/60">
+                    <th scope="row" className="px-4 py-3 text-left font-medium text-slate-900">
                       <span className="flex items-center gap-3">
-                        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-600">
-                          {customer.name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-semibold text-brand-700">
+                          {initials(customer.name)}
                         </span>
                         {customer.name}
                       </span>
                     </th>
-                    <td className="px-4 py-3 font-mono text-xs text-neutral-500">{customer.memberId}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{customer.memberId}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div
@@ -131,39 +142,36 @@ export function CustomerManagement({
                           aria-valuemin={0}
                           aria-valuemax={stampsRequired}
                           aria-valuenow={customer.stamps}
-                          className="h-1.5 w-24 overflow-hidden rounded-full bg-neutral-100"
+                          className="h-2 w-28 overflow-hidden rounded-full bg-slate-100"
                         >
-                          <div className="h-full rounded-full bg-emerald-700" style={{ width: `${progress}%` }} />
+                          <div
+                            className={cn("h-full rounded-full", rewardReady ? "bg-emerald-500" : "bg-brand-600")}
+                            style={{ width: `${progress}%` }}
+                          />
                         </div>
-                        <span className="whitespace-nowrap text-xs text-neutral-600">
+                        <span className="whitespace-nowrap text-xs font-medium tabular-nums text-slate-700">
                           {customer.stamps}/{stampsRequired}
                         </span>
                       </div>
-                      <span className={`mt-1 block text-[11px] ${rewardReady ? "font-medium text-emerald-700" : "text-neutral-400"}`}>
-                        {rewardReady ? "Reward ready" : `${stampsRequired - customer.stamps} to go`}
-                      </span>
+                      <div className="mt-1.5">
+                        {rewardReady ? (
+                          <Badge tone="success">Reward ready</Badge>
+                        ) : (
+                          <span className="text-xs text-slate-400">{stampsRequired - customer.stamps} to go</span>
+                        )}
+                      </div>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-xs text-neutral-500">{customer.lastVisit}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">{customer.lastVisit}</td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          disabled={rewardReady}
-                          onClick={() => handleAwardStamp(customer.id)}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
+                      <div className="flex items-center justify-end gap-2">
+                        <Button size="sm" disabled={rewardReady} onClick={() => handleAwardStamp(customer.id)}>
                           <Plus size={14} />
                           Award stamp
-                        </button>
-                        <button
-                          type="button"
-                          disabled={!rewardReady}
-                          onClick={() => handleRedeemReward(customer.id)}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-35"
-                        >
+                        </Button>
+                        <Button size="sm" variant="primary" disabled={!rewardReady} onClick={() => handleRedeemReward(customer.id)}>
                           <Gift size={14} />
                           Redeem
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -174,25 +182,15 @@ export function CustomerManagement({
         </div>
 
         {visibleCustomers.length === 0 && (
-          <p className="px-4 py-10 text-center text-sm text-neutral-500">
+          <p className="px-4 py-10 text-center text-sm text-slate-500">
             {customers.length === 0 ? "No sample customers for this restaurant yet." : "No customers match this search."}
           </p>
         )}
       </div>
 
-      <p role="status" aria-live="polite" className="mt-3 min-h-5 text-sm text-emerald-700">
+      <p role="status" aria-live="polite" className="mt-3 min-h-5 text-sm font-medium text-emerald-700">
         {statusMessage}
       </p>
     </>
-  );
-}
-
-function Summary({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return (
-    <div className="border-y border-neutral-200 py-3">
-      <p className="text-xs font-medium text-neutral-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums text-neutral-900">{value}</p>
-      <p className="mt-0.5 truncate text-xs text-neutral-400">{detail}</p>
-    </div>
   );
 }
