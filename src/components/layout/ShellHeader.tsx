@@ -1,14 +1,16 @@
-import { initials } from "@/lib/utils";
+import { UserMenu } from "./UserMenu";
 
-/** Top bar content: which account or workspace is being viewed. */
+/** Top bar content: which account or workspace is being viewed, and who is signed in. */
 export function ShellHeader({
   title,
   subtitle,
   badge,
+  user,
 }: {
   title: string;
   subtitle: string;
   badge?: React.ReactNode;
+  user: { name: string; email: string };
 }) {
   return (
     <div className="flex min-w-0 flex-1 items-center justify-between gap-4">
@@ -19,12 +21,7 @@ export function ShellHeader({
         </div>
         <p className="truncate text-xs text-slate-500">{subtitle}</p>
       </div>
-      <span
-        aria-hidden
-        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700"
-      >
-        {initials(title)}
-      </span>
+      <UserMenu name={user.name} email={user.email} />
     </div>
   );
 }

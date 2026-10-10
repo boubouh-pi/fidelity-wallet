@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { LifeBuoy } from "lucide-react";
+import { requireUser } from "@/auth/dal";
+import { PasswordForm } from "@/components/accounts/PasswordForm";
 import { RestaurantStatusBadge } from "@/components/restaurants/RestaurantStatusBadge";
 import { LoyaltySettingsForm, ProfileForm } from "@/components/settings/SettingsForms";
 import { SettingsSection } from "@/components/settings/SettingsSection";
@@ -22,7 +24,11 @@ export default function SettingsPage(props: PageProps<"/r/[restaurantId]/setting
 
 async function SettingsContent({ params }: PageProps<"/r/[restaurantId]/settings">) {
   const { restaurantId } = await params;
-  const [restaurant, settings] = await Promise.all([getRestaurant(restaurantId), getRestaurantSettings(restaurantId)]);
+  const [restaurant, settings, user] = await Promise.all([
+    getRestaurant(restaurantId),
+    getRestaurantSettings(restaurantId),
+    requireUser(),
+  ]);
   if (!restaurant || !settings) notFound();
 
   return (
@@ -55,6 +61,7 @@ async function SettingsContent({ params }: PageProps<"/r/[restaurantId]/settings
           </p>
         </Card>
       </SettingsSection>
+      <PasswordForm name={user.name} email={user.email} />
     </div>
   );
 }

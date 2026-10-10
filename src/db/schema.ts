@@ -2,7 +2,8 @@
  * Database schema. Every restaurant-owned table carries restaurant_id, and every
  * service query filters on it: that is how one restaurant never sees another's data.
  */
-import { boolean, date, index, integer, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { boolean, check, date, index, integer, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 export const restaurantStatus = pgEnum("restaurant_status", ["active", "onboarding", "paused"]);
 
@@ -72,3 +73,39 @@ export const restaurantProfiles = pgTable("restaurant_profiles", {
   address: text("address").notNull().default(""),
   website: text("website").notNull().default(""),
 });
+
+// ---------------------------------------------------------------------------
+// Authentication
+
+/** "admin" = Fidelity Wallet staff (all restaurants). "restaurant" = one restaurant's team. */
+export const userRole = pgEnum("user_role", ["admin", "restaurant"]);
+
+export const users = pgTable("users", {
+  id: text("id").primaryKey(),
+  /** Stored lowercased. */
+  email: text("email").notNull().unique(),
+  name: text("name").notNull(),
+  /** scrypt hash, never the password itself. */
+  passwordHash: text("password_hash").notNull(),
+  role: userRole("role").notNull(),
+  /** Required for restaurant users, empty for admins. */
+  restaurantId: text("restaurant_id").references(() => restaurants.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  check("users_restaurant_matches_role", sql`(${t.role} = 'admin') = (${t.restaurantId} is null)`),
+]);
+
+/** Login sessions. The id is the SHA-256 of the cookie token, so a database leak exposes no usable session. */
+export const sessions = pgTable("sessions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("sessions_user_id_idx").on(t.userId)]);
+
+/** Failed logins, used to slow down password guessing. */
+export const loginAttempts = pgTable("login_attempts", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  attemptedAt: timestamp("attempted_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("login_attempts_email_attempted_at_idx").on(t.email, t.attemptedAt)]);

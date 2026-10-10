@@ -72,13 +72,13 @@ The active restaurant/business should be identifiable throughout the dashboard. 
 
 A separate internal/provider platform may eventually support restaurant creation and onboarding, account management, initial card and program configuration, wallet integrations, platform monitoring, support, and global settings.
 
-At minimum, the provider experience needs a portfolio view listing all restaurant/business clients that have Fidelity Wallet cards, with their account status and card/program association. This view is distinct from the restaurant dashboard. A minimal, read-only version exists in the prototype at `/admin/restaurants`, with its own layout; the rest of the admin platform is not part of the current MVP. Do not add provider-only navigation or capabilities to the restaurant interface as a shortcut. The one exception is the prototype's restaurant switcher in the dashboard sidebar (switch demo restaurant, back to the restaurant list): it exists only because there is no authentication yet, and must be limited to Fidelity Wallet staff once accounts and roles exist.
+At minimum, the provider experience needs a portfolio view listing all restaurant/business clients that have Fidelity Wallet cards, with their account status and card/program association. This view is distinct from the restaurant dashboard. A minimal, read-only version exists in the prototype at `/admin/restaurants`, with its own layout; the rest of the admin platform is not part of the current MVP. Do not add provider-only navigation or capabilities to the restaurant interface as a shortcut. The one exception is the restaurant switcher in the dashboard sidebar (switch restaurant, back to the restaurant list), which is shown only to Fidelity Wallet admins; restaurant users never see it.
 
 ## Multi-Restaurant Architecture
 
 Fidelity Wallet must support many restaurant clients. Each restaurant has its own loyalty card, loyalty program, customers, rewards, promotions, and analytics. A restaurant must never see another restaurant's records.
 
-The current prototype uses restaurant-scoped routes such as `/r/[restaurantId]` and service calls that receive a restaurant ID. Keep data access scoped to the active restaurant as the app grows. Route IDs and mock services are not authentication or authorization; real access control must be enforced server-side when accounts and a backend are introduced.
+The current prototype uses restaurant-scoped routes such as `/r/[restaurantId]` and service calls that receive a restaurant ID. Keep data access scoped to the active restaurant as the app grows. Route IDs are not authorization: every service call checks on the server that the signed-in user may access that restaurant (admins: all restaurants; restaurant users: their own only).
 
 Use generic domain concepts such as Restaurant, Business, LoyaltyProgram, LoyaltyCard, Customer, Reward, and Promotion. Restaurant is the current MVP client type; keep the model open to other business clients without building a generalized multi-industry system prematurely.
 
@@ -97,14 +97,15 @@ For the current prototype, use mock data and show a representative preview. Do n
 - Dashboard overview and navigation for card, customers, rewards, promotions, analytics, and settings.
 - A loyalty card preview that communicates the restaurant's program and provider-managed initial design.
 - Clear indication of which restaurant account is being managed.
-- A minimal, read-only provider view listing all restaurant clients (`/admin/restaurants`). It has no access control until authentication exists.
+- A minimal provider view listing all restaurant clients (`/admin/restaurants`) and managing accounts (`/admin/users`), for Fidelity Wallet admins only.
+- Email and password sign-in. There is no public sign-up: Fidelity Wallet creates every account and hands over a temporary password.
 
 Some dashboard sections may remain placeholders while the product foundation is established.
 
 ## Future Features
 
 - Restaurant onboarding and the Fidelity Wallet internal admin platform.
-- Account authentication, roles, and server-side authorization.
+- Finer restaurant roles (for example owner and staff) and self-service password reset by email.
 - Operational restaurant data (real stamps, wallet events) replacing the generated demo figures.
 - Apple Wallet and Google Wallet pass creation, distribution, and updates.
 - Customer, loyalty progress, reward, promotion, analytics, and account-management workflows.
@@ -115,7 +116,6 @@ Some dashboard sections may remain placeholders while the product foundation is 
 
 - Apple Wallet integration.
 - Google Wallet integration.
-- Authentication and production authorization.
 - Payments and subscriptions.
 - The full Fidelity Wallet internal admin platform.
 - Restaurant visual card customization.
@@ -141,7 +141,7 @@ The current foundation is Next.js 16 App Router, TypeScript, Tailwind CSS 4, luc
 
 Keep restaurant-specific data access behind the service layer and pass the active restaurant identity into reads and mutations. As the backend is added, enforce tenant isolation and authorization on the server. Do not add database, deployment, or multi-tenant infrastructure before the product needs it.
 
-The current prototype is not a production-secure multi-tenant system: it has persistent storage but no authentication, authorization, or wallet integrations.
+The current prototype is not a production-secure multi-tenant system: it has persistent storage, sign-in and server-side authorization, but no wallet integrations, no password reset by email, and only two roles (Fidelity Wallet admin, restaurant team).
 
 ## Development Rules
 
@@ -163,5 +163,5 @@ The current prototype is not a production-secure multi-tenant system: it has per
 - Which loyalty mechanics are required first: stamps, points, visits, spend, or a combination?
 - What customer enrollment, consent, privacy, and data-retention policies will apply?
 - Which Apple Wallet and Google Wallet integration approach and operational workflows will be used?
-- What restaurant roles and permissions are needed after authentication is introduced?
+- What restaurant roles and permissions are needed beyond a single restaurant-team role?
 - Which business types beyond restaurants should be supported, and when should the domain model generalize?

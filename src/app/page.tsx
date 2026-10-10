@@ -1,10 +1,17 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
+import { getCurrentUser, homePath } from "@/auth/dal";
 
-/**
- * Temporary entry point. Until authentication exists, send visitors to the
- * Fidelity Wallet admin restaurant list. Later: logged-in restaurant users go
- * to their own restaurant, Fidelity Wallet staff go to the admin area.
- */
+/** Entry point: signed-in users go to their home (admin list or their restaurant), others to the login page. */
 export default function Home() {
-  redirect("/admin/restaurants");
+  return (
+    <Suspense fallback={null}>
+      <RedirectToHome />
+    </Suspense>
+  );
+}
+
+async function RedirectToHome(): Promise<null> {
+  const user = await getCurrentUser();
+  redirect(user ? homePath(user) : "/login");
 }

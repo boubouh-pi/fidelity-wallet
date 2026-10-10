@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { requireRestaurantAccess } from "@/auth/dal";
 import { AppShell } from "@/components/layout/AppShell";
 import { ShellHeader } from "@/components/layout/ShellHeader";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -17,6 +18,7 @@ export default function RestaurantLayout(props: LayoutProps<"/r/[restaurantId]">
 
 async function RestaurantWorkspace({ children, params }: LayoutProps<"/r/[restaurantId]">) {
   const { restaurantId } = await params;
+  const user = await requireRestaurantAccess(restaurantId);
   const [restaurant, restaurants] = await Promise.all([getRestaurant(restaurantId), listRestaurants()]);
   if (!restaurant) notFound();
   return (
@@ -24,7 +26,7 @@ async function RestaurantWorkspace({ children, params }: LayoutProps<"/r/[restau
       sidebar={
         <Sidebar
           restaurant={restaurant}
-          restaurants={restaurants.map(({ id, name, city }) => ({ id, name, city }))}
+          restaurants={user.role === "admin" ? restaurants.map(({ id, name, city }) => ({ id, name, city })) : null}
         />
       }
       header={
@@ -32,6 +34,7 @@ async function RestaurantWorkspace({ children, params }: LayoutProps<"/r/[restau
           title={restaurant.name}
           subtitle={`${restaurant.category} · ${restaurant.city}`}
           badge={<RestaurantStatusBadge status={restaurant.status} />}
+          user={user}
         />
       }
     >

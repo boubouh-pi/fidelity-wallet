@@ -1,5 +1,5 @@
 import {
-  BarChart3, CreditCard, Gift, LayoutDashboard, Megaphone, Settings, Store, Users,
+  BarChart3, CreditCard, Gift, KeyRound, LayoutDashboard, Megaphone, Settings, Store, Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -26,4 +26,5 @@ export const restaurantBasePath = (restaurantId: string) => `/r/${restaurantId}`
 /** Fidelity Wallet admin (provider side). Kept separate from restaurant navigation. */
 export const adminNavigation: NavItem[] = [
   { label: "Restaurants", path: "/admin/restaurants", icon: Store },
+  { label: "Accounts", path: "/admin/users", icon: KeyRound },
 ];

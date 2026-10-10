@@ -3,9 +3,14 @@
  * Deletes every row first, so never run it against a database with real data.
  */
 import { randomUUID } from "node:crypto";
+import { writeFileSync } from "node:fs";
+import { generatePassword, hashPassword } from "@/auth/password";
 import { addDays } from "@/lib/utils";
 import { getDb, schema } from "./index";
-import { seedRestaurants } from "./seed-data";
+import { seedAdmin, seedRestaurants } from "./seed-data";
+
+/** Where the generated demo passwords are written. Git-ignored: never commit it. */
+const CREDENTIALS_FILE = "seed-credentials.txt";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -14,9 +19,23 @@ async function seed() {
   const now = Date.now();
   const today = new Date(now).toISOString().slice(0, 10);
 
+  // Fresh random passwords on every seed: nothing guessable is ever committed to the repository.
+  const credentials: { email: string; password: string; access: string }[] = [];
+  const account = async (email: string, access: string) => {
+    const password = generatePassword();
+    credentials.push({ email, password, access });
+    return hashPassword(password);
+  };
+
   await db.transaction(async (tx) => {
-    // Deleting restaurants cascades to every table that references them.
+    // Deleting restaurants cascades to every table that references them; admins are removed separately.
+    await tx.delete(schema.loginAttempts);
+    await tx.delete(schema.users);
     await tx.delete(schema.restaurants);
+
+    await tx.insert(schema.users).values({
+      id: randomUUID(), ...seedAdmin, role: "admin", passwordHash: await account(seedAdmin.email, "Fidelity Wallet admin"),
+    });
 
     for (const s of seedRestaurants) {
       const restaurantId = s.restaurant.id;
@@ -26,6 +45,10 @@ async function seed() {
         id: `prog_${restaurantId}`, restaurantId, ...s.program, editableFields: s.editableFields,
       });
       await tx.insert(schema.restaurantProfiles).values({ restaurantId, ...s.profile });
+      await tx.insert(schema.users).values({
+        id: randomUUID(), ...s.account, role: "restaurant", restaurantId,
+        passwordHash: await account(s.account.email, s.restaurant.name),
+      });
 
       if (s.customers.length) {
         await tx.insert(schema.customers).values(
@@ -57,7 +80,18 @@ async function seed() {
     }
   });
 
-  console.log(`Seeded ${seedRestaurants.length} demo restaurants.`);
+  writeFileSync(
+    CREDENTIALS_FILE,
+    [
+      "Demo accounts created by npm run db:seed. Keep this file private; it is not committed.",
+      "",
+      ...credentials.map((c) => `${c.access.padEnd(24)} ${c.email.padEnd(34)} ${c.password}`),
+      "",
+    ].join("\n"),
+    { mode: 0o600 },
+  );
+  console.log(`Seeded ${seedRestaurants.length} demo restaurants and ${credentials.length} accounts.`);
+  console.log(`Demo logins written to ${CREDENTIALS_FILE} (git-ignored).`);
 }
 
 seed()

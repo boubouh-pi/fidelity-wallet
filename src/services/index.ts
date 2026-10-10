@@ -10,6 +10,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { connection } from "next/server";
 import { mockActivity, mockAnalyticsWeeks, mockMetrics, mockPreviewSamples, mockWeekdayShare } from "@/data/mock";
+import { requireAdmin, requireRestaurantAccess, requireUser } from "@/auth/dal";
 import { getDb, schema } from "@/db";
 import { addDays, formatRelativeDay } from "@/lib/utils";
 import type {
@@ -51,11 +52,16 @@ function toCustomer({ lastVisitAt, ...row }: CustomerRow, today: string): Custom
 // ---------------------------------------------------------------------------
 // Restaurants
 
+/** Restaurants the signed-in user may open: all of them for admins, their own for restaurant users. */
 export async function listRestaurants(): Promise<Restaurant[]> {
-  return (await db()).select().from(restaurants).orderBy(asc(restaurants.name));
+  const user = await requireUser();
+  const query = (await db()).select().from(restaurants);
+  if (user.role === "admin") return query.orderBy(asc(restaurants.name));
+  return user.restaurantId ? query.where(eq(restaurants.id, user.restaurantId)) : [];
 }
 
 export async function getRestaurant(restaurantId: string): Promise<Restaurant | null> {
+  await requireRestaurantAccess(restaurantId);
   const [row] = await (await db()).select().from(restaurants).where(eq(restaurants.id, restaurantId));
   return row ?? null;
 }
@@ -64,12 +70,14 @@ export async function getRestaurant(restaurantId: string): Promise<Restaurant | 
 // Dashboard (demo figures, except the live promotion count)
 
 export async function getDashboardMetrics(restaurantId: string): Promise<DashboardMetric[]> {
+  await requireRestaurantAccess(restaurantId);
   const metrics = mockMetrics[restaurantId] ?? [];
   const activePromotions = (await getPromotions(restaurantId)).filter((p) => p.status === "active").length;
   return metrics.map((m) => (m.id === "promos" ? { ...m, value: activePromotions } : m));
 }
 
 export async function getRecentActivity(restaurantId: string): Promise<Activity[]> {
+  await requireRestaurantAccess(restaurantId);
   return mockActivity[restaurantId] ?? [];
 }
 
@@ -77,11 +85,13 @@ export async function getRecentActivity(restaurantId: string): Promise<Activity[
 // Loyalty program & card
 
 export async function getLoyaltyProgram(restaurantId: string): Promise<LoyaltyProgram | null> {
+  await requireRestaurantAccess(restaurantId);
   const [row] = await (await db()).select().from(loyaltyPrograms).where(eq(loyaltyPrograms.restaurantId, restaurantId));
   return row ? toProgram(row) : null;
 }
 
 export async function getLoyaltyCardPreview(restaurantId: string): Promise<LoyaltyCardPreviewData | null> {
+  await requireRestaurantAccess(restaurantId);
   const database = await db();
   const [[card], program] = await Promise.all([
     database.select().from(loyaltyCards).where(eq(loyaltyCards.restaurantId, restaurantId)),
@@ -97,6 +107,7 @@ export async function getLoyaltyCardPreview(restaurantId: string): Promise<Loyal
 // Customers, stamps and rewards
 
 export async function getRestaurantCustomers(restaurantId: string): Promise<Customer[]> {
+  await requireRestaurantAccess(restaurantId);
   const [rows, today] = await Promise.all([
     (await db()).select().from(customers).where(eq(customers.restaurantId, restaurantId)).orderBy(asc(customers.memberId)),
     getToday(),
@@ -110,6 +121,7 @@ export async function getRestaurantCustomers(restaurantId: string): Promise<Cust
  * this restaurant's or the card is already full.
  */
 export async function awardStamp(restaurantId: string, customerId: string): Promise<Customer | null> {
+  await requireRestaurantAccess(restaurantId);
   const program = await getLoyaltyProgram(restaurantId);
   if (!program) return null;
   const [row] = await (await db())
@@ -122,6 +134,7 @@ export async function awardStamp(restaurantId: string, customerId: string): Prom
 
 /** Resets a full card and records the redemption, both or neither (one transaction). */
 export async function redeemReward(restaurantId: string, customerId: string): Promise<Customer | null> {
+  await requireRestaurantAccess(restaurantId);
   const program = await getLoyaltyProgram(restaurantId);
   if (!program) return null;
   const row = await (await db()).transaction(async (tx) => {
@@ -145,6 +158,7 @@ export async function redeemReward(restaurantId: string, customerId: string): Pr
 
 /** Customers whose card is full and who can claim the reward now. */
 export async function getRewardReadyCustomers(restaurantId: string): Promise<Customer[]> {
+  await requireRestaurantAccess(restaurantId);
   const program = await getLoyaltyProgram(restaurantId);
   if (!program) return [];
   const [rows, today] = await Promise.all([
@@ -160,6 +174,7 @@ export async function getRewardReadyCustomers(restaurantId: string): Promise<Cus
 
 /** Reward redemptions for one restaurant, newest first (latest 50). */
 export async function getRedemptions(restaurantId: string): Promise<Redemption[]> {
+  await requireRestaurantAccess(restaurantId);
   const [rows, today] = await Promise.all([
     (await db())
       .select()
@@ -185,6 +200,7 @@ const statusOrder: Record<PromotionStatus, number> = { active: 0, scheduled: 1, 
 
 /** A restaurant's promotions: active first, then scheduled, then ended. */
 export async function getPromotions(restaurantId: string): Promise<PromotionWithStatus[]> {
+  await requireRestaurantAccess(restaurantId);
   const [rows, today] = await Promise.all([
     (await db()).select().from(promotions).where(eq(promotions.restaurantId, restaurantId)),
     getToday(),
@@ -211,6 +227,7 @@ export type PromotionResult =
 const isDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
 
 export async function createPromotion(restaurantId: string, input: NewPromotion): Promise<PromotionResult> {
+  await requireRestaurantAccess(restaurantId);
   if (!(await getRestaurant(restaurantId))) return { ok: false, error: "Restaurant not found." };
 
   const title = input.title.trim();
@@ -235,6 +252,7 @@ export async function createPromotion(restaurantId: string, input: NewPromotion)
 
 /** Stops an active promotion, or cancels a scheduled one. */
 export async function endPromotion(restaurantId: string, promotionId: string): Promise<PromotionResult> {
+  await requireRestaurantAccess(restaurantId);
   const current = (await getPromotions(restaurantId)).find((p) => p.id === promotionId);
   if (!current) return { ok: false, error: "Promotion not found." };
   if (current.status === "ended") return { ok: false, error: "This promotion has already ended." };
@@ -254,6 +272,7 @@ const ANALYTICS_WEEKS = 24;
 
 /** Weekly program activity for one restaurant, over the last completed weeks. */
 export async function getAnalytics(restaurantId: string): Promise<RestaurantAnalytics> {
+  await requireRestaurantAccess(restaurantId);
   const date = await getToday();
   const daysSinceMonday = (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
   const currentMonday = addDays(date, -daysSinceMonday);
@@ -267,6 +286,7 @@ export async function getAnalytics(restaurantId: string): Promise<RestaurantAnal
 // Settings
 
 export async function getRestaurantSettings(restaurantId: string): Promise<RestaurantSettings | null> {
+  await requireRestaurantAccess(restaurantId);
   const database = await db();
   const [[profile], [program]] = await Promise.all([
     database.select().from(restaurantProfiles).where(eq(restaurantProfiles.restaurantId, restaurantId)),
@@ -286,6 +306,7 @@ export async function updateRestaurantProfile(
   restaurantId: string,
   input: Omit<RestaurantProfile, "restaurantId">,
 ): Promise<SettingsResult<RestaurantProfile>> {
+  await requireRestaurantAccess(restaurantId);
   const profile = {
     contactEmail: input.contactEmail.trim(),
     phone: input.phone.trim(),
@@ -319,6 +340,7 @@ export async function updateLoyaltySettings(
   restaurantId: string,
   changes: Partial<Pick<LoyaltyProgram, EditableProgramField>>,
 ): Promise<SettingsResult<LoyaltyProgram>> {
+  await requireRestaurantAccess(restaurantId);
   const database = await db();
   const [program] = await database.select().from(loyaltyPrograms).where(eq(loyaltyPrograms.restaurantId, restaurantId));
   if (!program) return { ok: false, error: "Restaurant not found." };
@@ -359,6 +381,7 @@ export async function updateLoyaltySettings(
  * Never call these from the restaurant dashboard.
  */
 export async function listRestaurantSummaries(): Promise<RestaurantSummary[]> {
+  await requireAdmin();
   const database = await db();
   const [restaurantRows, programRows, counts] = await Promise.all([
     listRestaurants(),
@@ -374,3 +397,4 @@ export async function listRestaurantSummaries(): Promise<RestaurantSummary[]> {
     };
   });
 }
+export * from "./accounts";
